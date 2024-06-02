@@ -14,5 +14,5 @@ function configure_dns_integration {
     configure_keystone_authtoken_middleware $NEUTRON_CONF designate designate
 }
 function post_config_dns_extension {
-    iniset $NEUTRON_CONF DEFAULT dns_domain openstackgate.local
+    iniset $NEUTRON_CONF DEFAULT dns_domain ${NEUTRON_DOMAIN_NAME:=openstackgate.local}
 }
