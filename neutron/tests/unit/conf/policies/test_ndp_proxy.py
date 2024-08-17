@@ -22,7 +22,7 @@ from neutron.tests.unit.conf.policies import test_base as base
 class NDPProxyAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(NDPProxyAPITestCase, self).setUp()
+        super().setUp()
         self.target = {'project_id': self.project_id}
         self.alt_target = {'project_id': self.alt_project_id}
 
@@ -30,7 +30,7 @@ class NDPProxyAPITestCase(base.PolicyBaseTestCase):
 class SystemAdminTests(NDPProxyAPITestCase):
 
     def setUp(self):
-        super(SystemAdminTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_create_ndp_proxy(self):
@@ -77,21 +77,21 @@ class SystemAdminTests(NDPProxyAPITestCase):
 class SystemMemberTests(SystemAdminTests):
 
     def setUp(self):
-        super(SystemMemberTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
 
 class SystemReaderTests(SystemMemberTests):
 
     def setUp(self):
-        super(SystemReaderTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminTests(NDPProxyAPITestCase):
 
     def setUp(self):
-        super(AdminTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_create_ndp_proxy(self):
@@ -119,11 +119,11 @@ class AdminTests(NDPProxyAPITestCase):
             policy.enforce(self.context, "delete_ndp_proxy", self.alt_target))
 
 
-class ProjectMemberTests(AdminTests):
+class ProjectManagerTests(AdminTests):
 
     def setUp(self):
-        super(ProjectMemberTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_create_ndp_proxy(self):
         self.assertTrue(
@@ -155,10 +155,17 @@ class ProjectMemberTests(AdminTests):
             policy.enforce, self.context, "delete_ndp_proxy", self.alt_target)
 
 
+class ProjectMemberTests(ProjectManagerTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderTests(ProjectMemberTests):
 
     def setUp(self):
-        super(ProjectReaderTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
     def test_create_ndp_proxy(self):
@@ -195,7 +202,7 @@ class ProjectReaderTests(ProjectMemberTests):
 class ServiceRoleTests(NDPProxyAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_create_ndp_proxy(self):

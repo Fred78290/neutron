@@ -230,10 +230,10 @@ class DbBasePluginCommon(object):
                         bulk=False):
         if isinstance(port, port_obj.Port):
             port_data = port.db_obj
-            standard_attr_id = port.db_obj.standard_attr.id
+            standard_attr_id = port.db_obj.standard_attr_id
         else:
             port_data = port
-            standard_attr_id = port.standard_attr.id
+            standard_attr_id = port.standard_attr_id
 
         mac = port["mac_address"]
         if isinstance(mac, netaddr.EUI):
@@ -301,11 +301,6 @@ class DbBasePluginCommon(object):
     def _get_route_by_subnet(self, context, subnet_id):
         return subnet_obj.Route.get_objects(context,
                                             subnet_id=subnet_id)
-
-    def _get_router_gw_ports_by_network(self, context, network_id):
-        return port_obj.Port.get_objects(
-            context, network_id=network_id,
-            device_owner=constants.DEVICE_OWNER_ROUTER_GW)
 
     @db_api.CONTEXT_READER
     def _get_subnets_by_network(self, context, network_id):

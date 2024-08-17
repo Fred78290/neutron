@@ -194,6 +194,18 @@ class OVNClient(object):
                         return opts
             return get_opts[0]
 
+    def _merge_map_dhcp_option(self, opt, port_opts, subnet_opts):
+        """Merge a port and subnet map DHCP option.
+
+        If a DHCP option exists in both port and subnet, the port
+        should inherit the values from the subnet.
+        """
+        port_opt = port_opts[opt]
+        subnet_opt = subnet_opts.get(opt)
+        if not subnet_opt:
+            return port_opt
+        return '{%s, %s}' % (subnet_opt[1:-1], port_opt[1:-1])
+
     def _get_port_dhcp_options(self, port, ip_version):
         """Return dhcp options for port.
 
@@ -225,6 +237,12 @@ class OVNClient(object):
 
         if not lsp_dhcp_opts:
             return subnet_dhcp_options
+
+        # Check for map DHCP options
+        for opt in ovn_const.OVN_MAP_TYPE_DHCP_OPTS:
+            if opt in lsp_dhcp_opts:
+                lsp_dhcp_opts[opt] = self._merge_map_dhcp_option(
+                    opt, lsp_dhcp_opts, subnet_dhcp_options['options'])
 
         # This port has extra DHCP options defined, so we will create a new
         # row in DHCP_Options table for it.
@@ -1238,13 +1256,7 @@ class OVNClient(object):
 
         for fixed_ip in port_fixed_ips:
             subnet_id = fixed_ip['subnet_id']
-            # NOTE(ralonsoh): it is needed to use the "admin" context here to
-            # retrieve the subnet. The subnet object is not handling correctly
-            # the RBAC filtering because is not filtering by
-            # "access_as_external", as network object is doing in
-            # ``_network_filter_hook``. See LP#2051831.
-            # TODO(ralonsoh): once LP#2051831 is fixed, remove "elevated()".
-            subnet = self._plugin.get_subnet(context.elevated(), subnet_id)
+            subnet = self._plugin.get_subnet(context, subnet_id)
             cidr = netaddr.IPNetwork(subnet['cidr'])
             networks.add("%s/%s" % (fixed_ip['ip_address'],
                                     str(cidr.prefixlen)))
@@ -1666,8 +1678,6 @@ class OVNClient(object):
         # logical router port is centralized in the chassis hosting the
         # distributed gateway port.
         # https://github.com/openvswitch/ovs/commit/85706c34d53d4810f54bec1de662392a3c06a996
-        # FIXME(ltomasbo): Once Bugzilla 2162756 is fixed the
-        # is_provider_network check should be removed
         if network_type == const.TYPE_VLAN:
             reside_redir_ch = self._get_reside_redir_for_gateway_port(
                 port['device_id'])
@@ -2042,6 +2052,11 @@ class OVNClient(object):
         if utils.is_provider_network(network):
             params['other_config'][ovn_const.LS_OPTIONS_FDB_AGE_THRESHOLD] = (
                 ovn_conf.get_fdb_age_threshold())
+        if utils.is_external_network(network):
+            params['other_config'][
+                ovn_const.LS_OPTIONS_BROADCAST_ARPS_ROUTERS] = ('true'
+                if ovn_conf.is_broadcast_arps_to_all_routers_enabled() else
+                'false')
         return params
 
     def create_network(self, context, network):
@@ -2084,7 +2099,10 @@ class OVNClient(object):
         for port in ports:
             lrp_name = utils.ovn_lrouter_port_name(port['id'])
             options = self._gen_router_port_options(port)
-            commands.append(self._nb_idl.lrp_set_options(lrp_name, **options))
+            # Do not fail for cases where logical router port get deleted
+            commands.append(self._nb_idl.lrp_set_options(lrp_name,
+                                                         if_exists=True,
+                                                         **options))
         self._transaction(commands, txn=txn)
 
     def _check_network_changes_in_ha_chassis_groups(self,

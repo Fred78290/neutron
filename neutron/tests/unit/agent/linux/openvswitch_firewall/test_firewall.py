@@ -495,7 +495,7 @@ class TestConjIPFlowManager(base.BaseTestCase):
         self.driver.delete_flows_for_flow_state.assert_called_once_with(
             {('10.22.3.4', 'ff:ee:dd:cc:bb:aa'): [self.conj_id]}, {},
             constants.INGRESS_DIRECTION, constants.IPv4, self.vlan_tag)
-        self.driver.delete_flow_for_ip.assert_not_called()
+        self.driver.delete_flow_for_ip_and_mac.assert_not_called()
 
     def test_remote_sg_removed(self):
         self._sg_removed('remote_id')
@@ -504,9 +504,9 @@ class TestConjIPFlowManager(base.BaseTestCase):
             {('10.22.3.4', 'ff:ee:dd:cc:bb:aa'): [self.conj_id]}, {},
             constants.INGRESS_DIRECTION, constants.IPv4, self.vlan_tag)
         # "conj_id_to_remove" is populated with the remote_sg conj_id assigned,
-        # "_update_flows_for_vlan_subr" will call "delete_flow_for_ip".
-        self.driver.delete_flow_for_ip.assert_called_once_with(
-            ('10.22.3.4', 'ff:ee:dd:cc:bb:aa'), 'ingress', 'IPv4', 100,
+        # "_update_flows_for_vlan_subr" will call "delete_flow_for_ip_and_mac".
+        self.driver.delete_flow_for_ip_and_mac.assert_called_once_with(
+            '10.22.3.4', 'ff:ee:dd:cc:bb:aa', 'ingress', 'IPv4', 100,
             {self.conj_id})
 
 
@@ -658,6 +658,21 @@ class TestOVSFirewallDriver(base.BaseTestCase):
         port = self.firewall.get_or_create_ofport(port_dict)
         self.assertIn(of_port.id, self.firewall.sg_port_map.ports.keys())
         self.assertEqual(port.ofport, 2)
+
+    def test_get_or_create_ofport_changed_and_local_vlan_changed(self):
+        port_dict = {
+            'device': 'port-id',
+            'security_groups': [123, 456]}
+        of_port = create_ofport(port_dict)
+        self.firewall.sg_port_map.ports[of_port.id] = of_port
+        fake_ovs_port = FakeOVSPort('port', 2, '00:00:00:00:00:00')
+        self.mock_bridge.br.get_vif_port_by_id.return_value = \
+            fake_ovs_port
+        self.mock_bridge.br.db_get_val.return_value = {"tag": 10}
+        port = self.firewall.get_or_create_ofport(port_dict)
+        self.assertIn(of_port.id, self.firewall.sg_port_map.ports.keys())
+        self.assertEqual(port.ofport, 2)
+        self.assertEqual(port.vlan_tag, 10)
 
     def test_get_or_create_ofport_missing(self):
         port_dict = {
@@ -920,8 +935,13 @@ class TestOVSFirewallDriver(base.BaseTestCase):
                       "reg6": port.vlan_tag}
         flow7 = mock.call(**call_args7)
 
+        call_args8 = {"table": ovs_consts.ACCEPTED_EGRESS_TRAFFIC_NORMAL_TABLE,
+                      "dl_dst": port.mac,
+                      "dl_vlan": port.vlan_tag}
+        flow8 = mock.call(**call_args8)
+
         self.mock_bridge.br.delete_flows.assert_has_calls(
-            [flow1, flow2, flow3, flow6, flow7, flow4, flow5])
+            [flow1, flow2, flow3, flow6, flow7, flow8, flow4, flow5])
 
     def test_prepare_port_filter_initialized_port(self):
         port_dict = {'device': 'port-id',
@@ -1204,44 +1224,58 @@ class TestOVSFirewallDriver(base.BaseTestCase):
         direction = 'one_direction'
         ethertype = 'ethertype'
         vlan_tag = 'taaag'
-        with mock.patch.object(self.firewall, 'delete_flow_for_ip') as \
-                mock_delete_flow_for_ip:
-            flow_state = {'addr1': {8, 16, 24}, 'addr2': {32, 40}}
+        with mock.patch.object(self.firewall,
+                               'delete_flow_for_ip_and_mac') as mock_del_flow:
+            flow_state = {
+                ('addr1', 'mac1'): {8, 16, 24},
+                ('addr2', 'mac2'): {32, 40},
+            }
             cfg.CONF.set_override('explicitly_egress_direct',
                                   explicitly_egress_direct, 'AGENT')
             self.firewall.delete_flows_for_flow_state(
                 flow_state, addr_to_conj, direction, ethertype, vlan_tag)
         calls = []
-        for removed_ip in flow_state.keys() - addr_to_conj.keys():
-            calls.append(mock.call(removed_ip, direction, ethertype, vlan_tag,
-                                   flow_state[removed_ip]))
+        for removed_ip, removed_mac in flow_state.keys() - addr_to_conj.keys():
+            calls.append(mock.call(removed_ip, removed_mac, direction,
+                                   ethertype, vlan_tag,
+                                   flow_state[(removed_ip, removed_mac)]))
             if explicitly_egress_direct:
-                calls.append(mock.call(removed_ip, direction, ethertype,
-                                       vlan_tag, [0]))
-        mock_delete_flow_for_ip.assert_has_calls(calls)
+                calls.append(mock.call(removed_ip, removed_mac, direction,
+                                       ethertype, vlan_tag, [0]))
+        mock_del_flow.assert_has_calls(calls, any_order=True)
 
     def test_delete_flows_for_flow_state_no_removed_ips_exp_egress(self):
-        addr_to_conj = {'addr1': {8, 16, 24}, 'addr2': {32, 40}}
+        addr_to_conj = {
+            ('addr1', 'mac1'): {8, 16, 24},
+            ('addr2', 'mac2'): {32, 40},
+        }
         self._test_delete_flows_for_flow_state(addr_to_conj)
 
     def test_delete_flows_for_flow_state_no_removed_ips_no_exp_egress(self):
-        addr_to_conj = {'addr1': {8, 16, 24}, 'addr2': {32, 40}}
+        addr_to_conj = {
+            ('addr1', 'mac1'): {8, 16, 24},
+            ('addr2', 'mac2'): {32, 40},
+        }
         self._test_delete_flows_for_flow_state(addr_to_conj, False)
 
     def test_delete_flows_for_flow_state_removed_ips_exp_egress(self):
-        addr_to_conj = {'addr2': {32, 40}}
+        addr_to_conj = {
+            ('mac2', 'addr2'): {32, 40},
+        }
         self._test_delete_flows_for_flow_state(addr_to_conj)
 
     def test_delete_flows_for_flow_state_removed_ips_no_exp_egress(self):
-        addr_to_conj = {'addr1': {8, 16, 24}}
+        addr_to_conj = {
+            ('mac1', 'addr1'): {8, 16, 24},
+        }
         self._test_delete_flows_for_flow_state(addr_to_conj, False)
 
-    def test_delete_flow_for_ip_using_cookie_any(self):
+    def test_delete_flow_for_ip_and_mac_using_cookie_any(self):
         with mock.patch.object(self.firewall, '_delete_flows') as \
                 mock_delete_flows:
-            self.firewall.delete_flow_for_ip(('10.1.2.3', None),
-                                             constants.INGRESS_DIRECTION,
-                                             constants.IPv4, 100, [0])
+            self.firewall.delete_flow_for_ip_and_mac(
+                '10.1.2.3', None, constants.INGRESS_DIRECTION,
+                constants.IPv4, 100, [0])
             _, kwargs = mock_delete_flows.call_args
             self.assertIn('cookie', kwargs)
             self.assertIs(ovs_lib.COOKIE_ANY, kwargs['cookie'])

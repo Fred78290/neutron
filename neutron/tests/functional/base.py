@@ -28,9 +28,11 @@ from oslo_config import cfg
 from oslo_log import log
 from oslo_utils import timeutils
 from oslo_utils import uuidutils
+from ovsdbapp.backend.ovs_idl import idlutils
 
 from neutron.agent.linux import utils
 from neutron.api import extensions as exts
+from neutron.api import wsgi
 from neutron.common import utils as n_utils
 from neutron.conf.agent import common as config
 from neutron.conf.agent import ovs_conf
@@ -52,7 +54,6 @@ from neutron.tests.common import helpers
 from neutron.tests.functional.resources import process
 from neutron.tests.unit.extensions import test_securitygroup
 from neutron.tests.unit.plugins.ml2 import test_plugin
-import neutron.wsgi
 
 LOG = log.getLogger(__name__)
 
@@ -328,7 +329,7 @@ class TestOVNFunctionalBase(test_plugin.Ml2PluginV2TestCase,
             trigger_cls.trigger.__self__.__class__ = worker.MaintenanceWorker
             cfg.CONF.set_override('neutron_sync_mode', 'off', 'ovn')
         else:
-            trigger_cls.trigger.__self__.__class__ = neutron.wsgi.WorkerService
+            trigger_cls.trigger.__self__.__class__ = wsgi.WorkerService
 
         self.addCleanup(self.stop)
         # NOTE(ralonsoh): do not access to the DB at exit when the SQL
@@ -378,8 +379,12 @@ class TestOVNFunctionalBase(test_plugin.Ml2PluginV2TestCase,
         if self.maintenance_worker:
             self.mech_driver.nb_synchronizer.stop()
             self.mech_driver.sb_synchronizer.stop()
-        self.mech_driver.nb_ovn.ovsdb_connection.stop()
-        self.mech_driver.sb_ovn.ovsdb_connection.stop()
+        for ovn_conn in (self.mech_driver.nb_ovn.ovsdb_connection,
+                         self.mech_driver.sb_ovn.ovsdb_connection):
+            try:
+                ovn_conn.stop(timeout=10)
+            except Exception:  # pylint:disable=bare-except
+                pass
 
     def restart(self):
         self.stop()
@@ -443,5 +448,12 @@ class TestOVNFunctionalBase(test_plugin.Ml2PluginV2TestCase,
     def del_fake_chassis(self, chassis, if_exists=True):
         self.sb_api.chassis_del(
             chassis, if_exists=if_exists).execute(check_error=True)
-        self.sb_api.db_destroy(
-            'Chassis_Private', chassis).execute(check_error=True)
+        try:
+            self.sb_api.db_destroy(
+                'Chassis_Private', chassis).execute(check_error=True)
+        except idlutils.RowNotFound:
+            # NOTE(ykarel ): ovsdbapp >= 2.7.0 handles Chassis_Private
+            # record delete with chassis
+            # try/except can be dropped when neutron requirements.txt
+            # include ovsdbapp>=2.7.0
+            pass

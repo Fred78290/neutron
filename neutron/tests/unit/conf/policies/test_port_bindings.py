@@ -22,14 +22,14 @@ from neutron.tests.unit.conf.policies import test_base as base
 class PortBindingsAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(PortBindingsAPITestCase, self).setUp()
+        super().setUp()
         self.target = {}
 
 
 class SystemAdminTests(PortBindingsAPITestCase):
 
     def setUp(self):
-        super(SystemAdminTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_get_port_binding(self):
@@ -60,21 +60,21 @@ class SystemAdminTests(PortBindingsAPITestCase):
 class SystemMemberTests(SystemAdminTests):
 
     def setUp(self):
-        super(SystemMemberTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
 
 class SystemReaderTests(SystemMemberTests):
 
     def setUp(self):
-        super(SystemReaderTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminTests(PortBindingsAPITestCase):
 
     def setUp(self):
-        super(AdminTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_get_port_binding(self):
@@ -100,11 +100,11 @@ class AdminTests(PortBindingsAPITestCase):
             self.context, "activate", self.target)
 
 
-class ProjectMemberTests(AdminTests):
+class ProjectManagerTests(AdminTests):
 
     def setUp(self):
-        super(ProjectMemberTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_get_port_binding(self):
         self.assertRaises(
@@ -113,17 +113,24 @@ class ProjectMemberTests(AdminTests):
             self.context, "get_port_binding", self.target)
 
 
+class ProjectMemberTests(ProjectManagerTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderTests(ProjectMemberTests):
 
     def setUp(self):
-        super(ProjectReaderTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
 
 class ServiceRoleTests(PortBindingsAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_get_port_binding(self):

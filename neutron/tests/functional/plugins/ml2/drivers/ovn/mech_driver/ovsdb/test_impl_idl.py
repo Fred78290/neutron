@@ -132,10 +132,10 @@ class TestSbApi(BaseOvnIdlTest):
         self.assertTrue(row_event.wait())
         return port.result, row_event.row
 
-    def test_get_metadata_port_network(self):
+    def test_get_metadata_port(self):
         chassis, switch = self._add_switch(self.data['chassis'][0]['name'])
         port, binding = self._add_port_to_switch(switch)
-        result = self.api.get_metadata_port_network(str(binding.datapath.uuid))
+        result = self.api.get_metadata_port(str(binding.datapath.uuid))
         self.assertEqual(binding, result)
         self.assertEqual(binding.datapath.external_ids['logical-switch'],
                          str(switch.uuid))
@@ -143,12 +143,12 @@ class TestSbApi(BaseOvnIdlTest):
             port.external_ids[ovn_const.OVN_DEVICE_OWNER_EXT_ID_KEY],
             constants.DEVICE_OWNER_DISTRIBUTED)
 
-    def test_get_metadata_port_network_other_non_metadata_port(self):
+    def test_get_metadata_port_other_non_metadata_port(self):
         chassis, switch = self._add_switch(self.data['chassis'][0]['name'])
         port, binding = self._add_port_to_switch(switch)
         port_lbhm, binding_port_lbhm = self._add_port_to_switch(
             switch, device_owner=ovn_const.OVN_LB_HM_PORT_DISTRIBUTED)
-        result = self.api.get_metadata_port_network(str(binding.datapath.uuid))
+        result = self.api.get_metadata_port(str(binding.datapath.uuid))
         self.assertEqual(binding, result)
         self.assertEqual(binding.datapath.external_ids['logical-switch'],
                          str(switch.uuid))
@@ -159,9 +159,9 @@ class TestSbApi(BaseOvnIdlTest):
             port_lbhm.external_ids[ovn_const.OVN_DEVICE_OWNER_EXT_ID_KEY],
             ovn_const.OVN_LB_HM_PORT_DISTRIBUTED)
 
-    def test_get_metadata_port_network_missing(self):
+    def test_get_metadata_port_missing(self):
         val = str(uuid.uuid4())
-        self.assertIsNone(self.api.get_metadata_port_network(val))
+        self.assertIsNone(self.api.get_metadata_port(val))
 
     def _create_bound_port_with_ip(self, mac, ipaddr):
         chassis, switch = self._add_switch(
@@ -627,15 +627,14 @@ class TestNbApi(BaseOvnIdlTest):
             self.nbapi.lookup('HA_Chassis_Group', router_name, default=None))
 
     def _assert_routes_exist(self, lr_name, expected_count):
-        with self.nbapi.transaction(check_error=True) as txn:
-            lr = txn.add(self.nbapi.lr_get(lr_name))
-        actual_count = len(lr.result.static_routes)
+        lr = self.nbapi.lookup('Logical_Router', lr_name)
+        actual_count = len(lr.static_routes)
         self.assertEqual(actual_count, expected_count,
                          f"Expected {expected_count} routes, "
                          f"found {actual_count}.")
 
     def test_del_static_routes(self):
-        lr_name = 'router_with_static_routes_del'
+        lr_name = ovn_utils.ovn_name(uuidutils.generate_uuid())
         routes = [('0.0.0.0/0', '192.0.2.1'), ('10.0.0.0/24', '192.0.3.1')]
 
         with self.nbapi.transaction(check_error=True) as txn:
@@ -653,7 +652,7 @@ class TestNbApi(BaseOvnIdlTest):
         self._assert_routes_exist(lr_name, 0)
 
     def test_del_no_static_routes(self):
-        lr_name = 'router_with_static_routes_del'
+        lr_name = ovn_utils.ovn_name(uuidutils.generate_uuid())
         routes = []
 
         with self.nbapi.transaction(check_error=True) as txn:

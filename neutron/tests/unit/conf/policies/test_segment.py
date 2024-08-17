@@ -22,14 +22,14 @@ from neutron.tests.unit.conf.policies import test_base as base
 class SegmentAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(SegmentAPITestCase, self).setUp()
+        super().setUp()
         self.target = {}
 
 
 class SystemAdminTests(SegmentAPITestCase):
 
     def setUp(self):
-        super(SystemAdminTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_create_segment(self):
@@ -78,21 +78,21 @@ class SystemAdminTests(SegmentAPITestCase):
 class SystemMemberTests(SystemAdminTests):
 
     def setUp(self):
-        super(SystemMemberTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
 
 class SystemReaderTests(SystemMemberTests):
 
     def setUp(self):
-        super(SystemReaderTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminTests(SegmentAPITestCase):
 
     def setUp(self):
-        super(AdminTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_create_segment(self):
@@ -124,11 +124,11 @@ class AdminTests(SegmentAPITestCase):
             policy.enforce(self.context, 'delete_segments_tags', self.target))
 
 
-class ProjectMemberTests(AdminTests):
+class ProjectManagerTests(AdminTests):
 
     def setUp(self):
-        super(ProjectMemberTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_create_segment(self):
         self.assertRaises(
@@ -173,17 +173,24 @@ class ProjectMemberTests(AdminTests):
             self.context, 'delete_segments_tags', self.target)
 
 
+class ProjectMemberTests(ProjectManagerTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderTests(ProjectMemberTests):
 
     def setUp(self):
-        super(ProjectReaderTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
 
 class ServiceRoleTests(SegmentAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_create_segment(self):

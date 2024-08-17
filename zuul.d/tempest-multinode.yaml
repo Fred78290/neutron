@@ -58,7 +58,6 @@
       - ^plugin.spec$
       - ^tools/ovn_migration/.*$
       - ^neutron/agent/ovn/.*$
-      - ^neutron/agent/windows/.*$
       - ^neutron/plugins/ml2/drivers/linuxbridge/.*$
       - ^neutron/plugins/ml2/drivers/macvtap/.*$
       - ^neutron/plugins/ml2/drivers/mech_sriov/.*$
@@ -75,7 +74,13 @@
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
       - ^vagrant/.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
     vars:
       tox_envlist: integrated-network
       devstack_localrc:
@@ -86,6 +91,7 @@
         Q_ML2_TENANT_NETWORK_TYPE: vxlan
         Q_ML2_PLUGIN_MECHANISM_DRIVERS: openvswitch,linuxbridge
         Q_AGENT: openvswitch
+        NEUTRON_DEPLOY_MOD_WSGI: true
       devstack_services:
         br-ex-tcpdump: true
         br-int-flows: true
@@ -388,7 +394,6 @@
       - ^neutron/agent/l2/.*$
       - ^neutron/agent/l3/.*$
       - ^neutron/agent/metadata/.*$
-      - ^neutron/agent/windows/.*$
       - ^neutron/agent/dhcp_agent.py
       - ^neutron/agent/l3_agent.py
       - ^neutron/agent/metadata_agent.py
@@ -406,7 +411,13 @@
       - ^neutron/scheduler/.*$
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
     roles:
       - zuul: zuul/zuul-jobs
       - zuul: openstack/neutron-tempest-plugin
@@ -571,11 +582,11 @@
         OVN_BUILD_FROM_SOURCE: True
         OVN_BRANCH: main
         # NOTE(ykarel): OVN main branch following OVS stable branch
-        OVS_BRANCH: branch-3.3
+        OVS_BRANCH: branch-3.4
     group-vars:
       subnode:
         devstack_localrc:
           OVN_BUILD_FROM_SOURCE: True
           OVN_BRANCH: main
           # NOTE(ykarel): OVN main branch following OVS stable branch
-          OVS_BRANCH: branch-3.3
+          OVS_BRANCH: branch-3.4

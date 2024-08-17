@@ -25,7 +25,7 @@ from neutron.tests.unit.conf.policies import test_base as base
 class SecurityGroupAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(SecurityGroupAPITestCase, self).setUp()
+        super().setUp()
         self.target = {'project_id': self.project_id}
         self.alt_target = {'project_id': self.alt_project_id}
 
@@ -33,7 +33,7 @@ class SecurityGroupAPITestCase(base.PolicyBaseTestCase):
 class SystemAdminSecurityGroupTests(SecurityGroupAPITestCase):
 
     def setUp(self):
-        super(SystemAdminSecurityGroupTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_create_security_group(self):
@@ -110,21 +110,21 @@ class SystemAdminSecurityGroupTests(SecurityGroupAPITestCase):
 class SystemMemberSecurityGroupTests(SystemAdminSecurityGroupTests):
 
     def setUp(self):
-        super(SystemMemberSecurityGroupTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
 
 class SystemReaderSecurityGroupTests(SystemMemberSecurityGroupTests):
 
     def setUp(self):
-        super(SystemReaderSecurityGroupTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminSecurityGroupTests(SecurityGroupAPITestCase):
 
     def setUp(self):
-        super(AdminSecurityGroupTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_create_security_group(self):
@@ -180,11 +180,11 @@ class AdminSecurityGroupTests(SecurityGroupAPITestCase):
                            self.alt_target))
 
 
-class ProjectMemberSecurityGroupTests(AdminSecurityGroupTests):
+class ProjectManagerSecurityGroupTests(AdminSecurityGroupTests):
 
     def setUp(self):
-        super(ProjectMemberSecurityGroupTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_create_security_group(self):
         self.assertTrue(
@@ -244,10 +244,17 @@ class ProjectMemberSecurityGroupTests(AdminSecurityGroupTests):
             self.context, 'delete_security_groups_tags', self.alt_target)
 
 
+class ProjectMemberSecurityGroupTests(ProjectManagerSecurityGroupTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderSecurityGroupTests(ProjectMemberSecurityGroupTests):
 
     def setUp(self):
-        super(ProjectReaderSecurityGroupTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
     def test_create_security_group(self):
@@ -304,7 +311,7 @@ class ProjectReaderSecurityGroupTests(ProjectMemberSecurityGroupTests):
 class ServiceRoleSecurityGroupTests(SecurityGroupAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleSecurityGroupTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_create_security_group(self):
@@ -335,7 +342,7 @@ class ServiceRoleSecurityGroupTests(SecurityGroupAPITestCase):
 class SecurityGroupRuleAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(SecurityGroupRuleAPITestCase, self).setUp()
+        super().setUp()
         self.sg = {
             'id': uuidutils.generate_uuid(),
             'project_id': self.project_id}
@@ -377,7 +384,7 @@ class SecurityGroupRuleAPITestCase(base.PolicyBaseTestCase):
 class SystemAdminSecurityGroupRuleTests(SecurityGroupRuleAPITestCase):
 
     def setUp(self):
-        super(SystemAdminSecurityGroupRuleTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_create_security_group_rule(self):
@@ -414,21 +421,21 @@ class SystemAdminSecurityGroupRuleTests(SecurityGroupRuleAPITestCase):
 class SystemMemberSecurityGroupRuleTests(SystemAdminSecurityGroupRuleTests):
 
     def setUp(self):
-        super(SystemMemberSecurityGroupRuleTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
 
 class SystemReaderSecurityGroupRuleTests(SystemMemberSecurityGroupRuleTests):
 
     def setUp(self):
-        super(SystemReaderSecurityGroupRuleTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminSecurityGroupRuleTests(SecurityGroupRuleAPITestCase):
 
     def setUp(self):
-        super(AdminSecurityGroupRuleTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_create_security_group_rule(self):
@@ -474,11 +481,11 @@ class AdminSecurityGroupRuleTests(SecurityGroupRuleAPITestCase):
                            'delete_security_group_rule', self.alt_target))
 
 
-class ProjectMemberSecurityGroupRuleTests(AdminSecurityGroupRuleTests):
+class ProjectManagerSecurityGroupRuleTests(AdminSecurityGroupRuleTests):
 
     def setUp(self):
-        super(ProjectMemberSecurityGroupRuleTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_create_security_group_rule(self):
         self.assertTrue(
@@ -530,10 +537,18 @@ class ProjectMemberSecurityGroupRuleTests(AdminSecurityGroupRuleTests):
             self.context, 'delete_security_group_rule', self.alt_target)
 
 
+class ProjectMemberSecurityGroupRuleTests(
+        ProjectManagerSecurityGroupRuleTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderSecurityGroupRuleTests(ProjectMemberSecurityGroupRuleTests):
 
     def setUp(self):
-        super(ProjectReaderSecurityGroupRuleTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
     def test_create_security_group_rule(self):
@@ -560,7 +575,7 @@ class ProjectReaderSecurityGroupRuleTests(ProjectMemberSecurityGroupRuleTests):
 class ServiceRoleSecurityGroupRuleTests(SecurityGroupRuleAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleSecurityGroupRuleTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_create_security_group_rule(self):

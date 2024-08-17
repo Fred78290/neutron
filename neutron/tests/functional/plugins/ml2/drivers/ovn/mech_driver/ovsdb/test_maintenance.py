@@ -775,8 +775,12 @@ class TestMaintenance(_TestMaintenanceHelper):
         self.assertEqual(
             '0', ls.other_config.get(ovn_const.LS_OPTIONS_FDB_AGE_THRESHOLD))
 
+        self.assertEqual(
+            '0', self.nb_api.nb_global.options.get("fdb_removal_limit", '0'))
+
         # Change the value of the configuration
         cfg.CONF.set_override('fdb_age_threshold', 5, group='ovn')
+        cfg.CONF.set_override('fdb_removal_limit', 100, group='ovn_nb_global')
 
         # Call the maintenance task and check that the value has been
         # updated in the Logical Switch
@@ -787,6 +791,51 @@ class TestMaintenance(_TestMaintenanceHelper):
 
         self.assertEqual(
             '5', ls.other_config.get(ovn_const.LS_OPTIONS_FDB_AGE_THRESHOLD))
+        self.assertEqual(
+            '100', self.nb_api.nb_global.options.get("fdb_removal_limit"))
+
+    def test_update_mac_aging_settings(self):
+        ext_net = self._create_network('ext_networktest', external=True)
+        ext_subnet = self._create_subnet(
+            'ext_subnettest',
+            ext_net['id'],
+            **{'cidr': '100.0.0.0/24',
+               'gateway_ip': '100.0.0.254',
+               'allocation_pools': [
+                   {'start': '100.0.0.2', 'end': '100.0.0.253'}],
+               'enable_dhcp': False})
+        self._create_network('network1test', external=False)
+        external_gateway_info = {
+            'enable_snat': True,
+            'network_id': ext_net['id'],
+            'external_fixed_ips': [
+                {'ip_address': '100.0.0.2', 'subnet_id': ext_subnet['id']}]}
+        router = self._create_router(
+            'routertest', external_gateway_info=external_gateway_info)
+
+        options = self.nb_api.nb_global.options
+        lr = self.nb_api.get_lrouter(router["id"])
+
+        self.assertEqual(
+            '0', lr.options.get(ovn_const.LR_OPTIONS_MAC_AGE_LIMIT))
+
+        self.assertEqual('0', options.get('mac_binding_removal_limit', '0'))
+
+        cfg.CONF.set_override("mac_binding_age_threshold", 5, group="ovn")
+        cfg.CONF.set_override("mac_binding_removal_limit", 100,
+                              group="ovn_nb_global")
+
+        # Call the maintenance task and check that the value has been
+        # updated in the Logical Switch
+        self.assertRaises(periodics.NeverAgain,
+                          self.maint.update_mac_aging_settings)
+
+        lr = self.nb_api.get_lrouter(router['id'])
+        options = self.nb_api.nb_global.options
+
+        self.assertEqual(
+            '5', lr.options.get(ovn_const.LR_OPTIONS_MAC_AGE_LIMIT))
+        self.assertEqual('100', options['mac_binding_removal_limit'])
 
     def test_floating_ip(self):
         ext_net = self._create_network('ext_networktest', external=True)
@@ -1014,64 +1063,6 @@ class TestMaintenance(_TestMaintenanceHelper):
         lsp = self.nb_api.lookup('Logical_Switch_Port', p1['id'])
         self.assertEqual(hcg_uuid, lsp.ha_chassis_group[0].uuid)
 
-    def test_remove_duplicated_chassis_registers(self):
-        hostnames = ['host1', 'host2']
-        for hostname in hostnames:
-            for _ in range(3):
-                self.add_fake_chassis(hostname)
-
-        chassis = self.sb_api.chassis_list().execute(check_error=True)
-        self.assertEqual(6, len(chassis))
-        # Make the chassis private timestamp different
-        for idx, ch in enumerate(chassis):
-            self.sb_api.db_set('Chassis_Private', ch.name,
-                               ('nb_cfg_timestamp', idx)).execute()
-
-        ch_private_dict = {}  # host: [ch_private1, ch_private2, ...]
-        for hostname in hostnames:
-            ch_private_list = []
-            for ch in (ch for ch in chassis if ch.hostname == hostname):
-                ch_private = self.sb_api.lookup('Chassis_Private', ch.name,
-                                                default=None)
-                if ch_private:
-                    # One of the "Chassis_Private" has been deleted on purpose
-                    # in this test.
-                    ch_private_list.append(ch_private)
-            ch_private_list.sort(key=lambda x: x.nb_cfg_timestamp,
-                                 reverse=True)
-            ch_private_dict[hostname] = ch_private_list
-
-        self.maint.remove_duplicated_chassis_registers()
-        chassis_result = self.sb_api.chassis_list().execute(check_error=True)
-        self.assertEqual(2, len(chassis_result))
-        for ch in chassis_result:
-            self.assertIn(ch.hostname, hostnames)
-            hostnames.remove(ch.hostname)
-            # From ch_private_dict[ch.hostname], we retrieve the first
-            # "Chassis_Private" register because these are ordered by
-            # timestamp. The newer one (bigger timestamp) should remain in the
-            # system.
-            ch_expected = ch_private_dict[ch.hostname][0].chassis[0]
-            self.assertEqual(ch_expected.name, ch.name)
-
-    def test_remove_duplicated_chassis_registers_no_ch_private_register(self):
-        for _ in range(2):
-            self.add_fake_chassis('host1')
-
-        chassis = self.sb_api.chassis_list().execute(check_error=True)
-        self.assertEqual(2, len(chassis))
-        # Make the chassis private timestamp different
-        # Delete on of the "Chassis_Private" registers.
-        self.sb_api.db_destroy('Chassis_Private', chassis[0].name).execute()
-        self.sb_api.db_set('Chassis_Private', chassis[1].name,
-                           ('nb_cfg_timestamp', 1)).execute()
-
-        self.maint.remove_duplicated_chassis_registers()
-        chassis_result = self.sb_api.chassis_list().execute(check_error=True)
-        # Both "Chassis" registers are still in the DB because one
-        # "Chassis_Private" register was missing.
-        self.assertEqual(2, len(chassis_result))
-
     def test_configure_nb_global(self):
         def options_intersect(options1, options2):
             return bool(set(
@@ -1234,6 +1225,30 @@ class TestMaintenance(_TestMaintenanceHelper):
         ls = self.nb_api.lookup('Logical_Switch', ls_name)
         self.assertEqual(net1[provnet_apidef.NETWORK_TYPE],
                          ls.external_ids.get(ovn_const.OVN_NETTYPE_EXT_ID_KEY))
+
+    def test_check_network_broadcast_arps_to_all_routers(self):
+        net = self._create_network('net', external=True)
+        ls = self.nb_api.get_lswitch(utils.ovn_name(net['id']))
+
+        self.assertEqual(
+            'true',
+            ls.other_config.get(ovn_const.LS_OPTIONS_BROADCAST_ARPS_ROUTERS))
+
+        # Change the value of the configuration
+        cfg.CONF.set_override(
+            'broadcast_arps_to_all_routers', False, group='ovn')
+
+        # Call the maintenance task and check that the value has been
+        # updated in the Logical Switch
+        self.assertRaises(
+            periodics.NeverAgain,
+            self.maint.check_network_broadcast_arps_to_all_routers)
+
+        ls = self.nb_api.get_lswitch(utils.ovn_name(net['id']))
+
+        self.assertEqual(
+            'false',
+            ls.other_config.get(ovn_const.LS_OPTIONS_BROADCAST_ARPS_ROUTERS))
 
 
 class TestLogMaintenance(_TestMaintenanceHelper,

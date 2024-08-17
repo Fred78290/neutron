@@ -37,12 +37,9 @@ import eventlet
 from eventlet.green import subprocess
 import netaddr
 from neutron_lib.api.definitions import availability_zone as az_def
-from neutron_lib.api.definitions import portbindings
-from neutron_lib.api.definitions import portbindings_extended
 from neutron_lib import constants as n_const
 from neutron_lib import context as n_context
 from neutron_lib.db import api as db_api
-from neutron_lib.plugins import utils as plugin_utils
 from neutron_lib.services.qos import constants as qos_consts
 from neutron_lib.services.trunk import constants as trunk_constants
 from neutron_lib.utils import helpers
@@ -53,8 +50,8 @@ from oslo_utils import encodeutils
 from oslo_utils import excutils
 from oslo_utils import timeutils
 from oslo_utils import uuidutils
+from oslo_utils import versionutils
 from osprofiler import profiler
-import pkg_resources
 from sqlalchemy.dialects.mysql import dialect as mysql_dialect
 from sqlalchemy.dialects.postgresql import dialect as postgresql_dialect
 from sqlalchemy.dialects.sqlite import dialect as sqlite_dialect
@@ -359,8 +356,8 @@ def get_socket_address_family(ip_version):
 
 def is_version_greater_equal(version1, version2):
     """Returns True if version1 is greater or equal than version2 else False"""
-    return (pkg_resources.parse_version(version1) >=
-            pkg_resources.parse_version(version2))
+    return (versionutils.convert_version_to_tuple(version1) >=
+            versionutils.convert_version_to_tuple(version2))
 
 
 class DelayedStringRenderer(object):
@@ -1106,16 +1103,3 @@ def parse_permitted_ethertypes(permitted_ethertypes):
             continue
 
     return ret
-
-
-# TODO(slaweq): this should be moved to neutron_lib.plugins.utils module
-def is_port_bound(port, log_message=True):
-    active_binding = plugin_utils.get_port_binding_by_status_and_host(
-        port.get('port_bindings', []), n_const.ACTIVE)
-    if not active_binding:
-        if log_message:
-            LOG.warning('Binding for port %s was not found.', port)
-        return False
-    return active_binding[portbindings_extended.VIF_TYPE] not in (
-        portbindings.VIF_TYPE_UNBOUND,
-        portbindings.VIF_TYPE_BINDING_FAILED)

@@ -22,7 +22,7 @@ from neutron.tests.unit.conf.policies import test_base as base
 class LocalIPAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(LocalIPAPITestCase, self).setUp()
+        super().setUp()
         self.target = {
             'project_id': self.project_id,
             'local_ip_address': '172.24.4.228'}
@@ -34,7 +34,7 @@ class LocalIPAPITestCase(base.PolicyBaseTestCase):
 class SystemAdminTests(LocalIPAPITestCase):
 
     def setUp(self):
-        super(SystemAdminTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_create_local_ip(self):
@@ -61,21 +61,21 @@ class SystemAdminTests(LocalIPAPITestCase):
 class SystemMemberTests(SystemAdminTests):
 
     def setUp(self):
-        super(SystemMemberTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
 
 class SystemReaderTests(SystemMemberTests):
 
     def setUp(self):
-        super(SystemReaderTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminTests(LocalIPAPITestCase):
 
     def setUp(self):
-        super(AdminTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_create_local_ip(self):
@@ -103,11 +103,11 @@ class AdminTests(LocalIPAPITestCase):
             policy.enforce(self.context, "delete_local_ip", self.alt_target))
 
 
-class ProjectMemberTests(AdminTests):
+class ProjectManagerTests(AdminTests):
 
     def setUp(self):
-        super(ProjectMemberTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_create_local_ip(self):
         self.assertTrue(
@@ -138,10 +138,17 @@ class ProjectMemberTests(AdminTests):
             policy.enforce, self.context, "delete_local_ip", self.alt_target)
 
 
+class ProjectMemberTests(ProjectManagerTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderTests(LocalIPAPITestCase):
 
     def setUp(self):
-        super(ProjectReaderTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
     def test_create_localip(self):
@@ -187,7 +194,7 @@ class ProjectReaderTests(LocalIPAPITestCase):
 class ServiceRoleTests(LocalIPAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_create_local_ip(self):

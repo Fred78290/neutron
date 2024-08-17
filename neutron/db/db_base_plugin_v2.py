@@ -513,9 +513,9 @@ class NeutronDbPluginV2(db_base_plugin_common.DbBasePluginCommon,
             return
 
         # at least one subnet present, if below IPv4 minimum we fail early
-        if mtu < _constants.IPV4_MIN_MTU:
+        if mtu < constants.IPV4_MIN_MTU:
             raise mtu_exc.NetworkMTUSubnetConflict(
-                net_id=id, mtu=_constants.IPV4_MIN_MTU)
+                net_id=id, mtu=constants.IPV4_MIN_MTU)
 
         # We do not need to check IPv4 subnets as they will have been
         # caught by above IPV4_MIN_MTU check
@@ -794,7 +794,7 @@ class NeutronDbPluginV2(db_base_plugin_common.DbBasePluginCommon,
             return
 
         # if below IPv4 minimum we fail early
-        if mtu < _constants.IPV4_MIN_MTU:
+        if mtu < constants.IPV4_MIN_MTU:
             raise mtu_exc.NetworkMTUSubnetConflict(net_id=network.id, mtu=mtu)
 
         # We do not need to check IPv4 subnets as they will have been
@@ -806,40 +806,10 @@ class NeutronDbPluginV2(db_base_plugin_common.DbBasePluginCommon,
 
     def _update_router_gw_ports(self, context, network, subnet):
         l3plugin = directory.get_plugin(plugin_constants.L3)
-        if l3plugin:
-            gw_ports = self._get_router_gw_ports_by_network(context,
-                                                            network['id'])
-            router_ids = [p.device_id for p in gw_ports]
-            for id in router_ids:
-                try:
-                    self._update_router_gw_port(context, id, network, subnet)
-                except l3_exc.RouterNotFound:
-                    LOG.debug("Router %(id)s was concurrently deleted while "
-                              "updating GW port for subnet %(s)s",
-                              {'id': id, 's': subnet})
-
-    def _update_router_gw_port(self, context, router_id, network, subnet):
-        l3plugin = directory.get_plugin(plugin_constants.L3)
-        ctx_admin = context.elevated()
-        ext_subnets_dict = {s['id']: s for s in network['subnets']}
-        router = l3plugin.get_router(ctx_admin, router_id)
-        external_gateway_info = router['external_gateway_info']
-        # Get all stateful (i.e. non-SLAAC/DHCPv6-stateless) fixed ips
-        fips = [f for f in external_gateway_info['external_fixed_ips']
-                if not ipv6_utils.is_auto_address_subnet(
-                    ext_subnets_dict[f['subnet_id']])]
-        num_fips = len(fips)
-        # Don't add the fixed IP to the port if it already
-        # has a stateful fixed IP of the same IP version
-        if num_fips > 1:
-            return
-        if num_fips == 1 and netaddr.IPAddress(
-                fips[0]['ip_address']).version == subnet['ip_version']:
-            return
-        external_gateway_info['external_fixed_ips'].append(
-            {'subnet_id': subnet['id']})
-        info = {'router': {'external_gateway_info': external_gateway_info}}
-        l3plugin.update_router(ctx_admin, router_id, info)
+        # The hasattr check for customized l3 plugins that may have no such
+        # function.
+        if l3plugin and hasattr(l3plugin, "update_router_gw_ports"):
+            l3plugin.update_router_gw_ports(context, network, subnet)
 
     @db_api.retry_if_session_inactive()
     def _create_subnet_postcommit(self, context, result,

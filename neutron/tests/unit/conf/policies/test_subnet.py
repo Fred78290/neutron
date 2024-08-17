@@ -15,6 +15,9 @@
 
 from unittest import mock
 
+from neutron_lib.api import attributes
+from neutron_lib.api.definitions import subnet as subnet_def
+from neutron_lib.api.definitions import subnet_external_network as sen_def
 from oslo_policy import policy as base_policy
 from oslo_utils import uuidutils
 
@@ -25,7 +28,12 @@ from neutron.tests.unit.conf.policies import test_base as base
 class SubnetAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(SubnetAPITestCase, self).setUp()
+        # Extend subnet "subnet-external-network" extension. This extension
+        # is not loaded in the unit tests.
+        rname = subnet_def.COLLECTION_NAME
+        attributes.RESOURCES[rname].update(
+            sen_def.RESOURCE_ATTRIBUTE_MAP[rname])
+        super().setUp()
 
         self.network = {
             'id': uuidutils.generate_uuid(),
@@ -35,17 +43,23 @@ class SubnetAPITestCase(base.PolicyBaseTestCase):
             'id': uuidutils.generate_uuid(),
             'tenant_id': self.alt_project_id,
             'project_id': self.alt_project_id}
+        self.ext_alt_network = {
+            'id': uuidutils.generate_uuid(),
+            'tenant_id': self.alt_project_id,
+            'project_id': self.alt_project_id}
 
         networks = {
             self.network['id']: self.network,
-            self.alt_network['id']: self.alt_network}
+            self.alt_network['id']: self.alt_network,
+            self.ext_alt_network['id']: self.ext_alt_network,
+        }
 
         self.target = {
             'project_id': self.project_id,
             'tenant_id': self.project_id,
             'network_id': self.network['id'],
             'ext_parent_network_id': self.network['id']}
-        # This network belongs to "project_id", but not the network that
+        # This subnet belongs to "project_id", but not the network that
         # belongs to "alt_project_id".
         self.target_net_alt_target = {
             'project_id': self.project_id,
@@ -57,6 +71,14 @@ class SubnetAPITestCase(base.PolicyBaseTestCase):
             'tenant_id': self.alt_project_id,
             'network_id': self.alt_network['id'],
             'ext_parent_network_id': self.alt_network['id']}
+        # Both the subnet and the network belongs to "alt_project_id" and the
+        # network is external.
+        self.target_net_ext_alt_target = {
+            'project_id': self.alt_project_id,
+            'tenant_id': self.alt_project_id,
+            'network_id': self.ext_alt_network['id'],
+            'ext_parent_network_id': self.ext_alt_network['id'],
+            'router:external': True}
 
         def get_network(context, id, fields=None):
             return networks.get(id)
@@ -71,7 +93,7 @@ class SubnetAPITestCase(base.PolicyBaseTestCase):
 class SystemAdminTests(SubnetAPITestCase):
 
     def setUp(self):
-        super(SystemAdminTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_create_subnet(self):
@@ -130,6 +152,10 @@ class SystemAdminTests(SubnetAPITestCase):
         self.assertRaises(
             base_policy.InvalidScope,
             policy.enforce,
+            self.context, 'get_subnet', self.target_net_ext_alt_target)
+        self.assertRaises(
+            base_policy.InvalidScope,
+            policy.enforce,
             self.context, 'get_subnet', self.alt_target)
 
     def test_get_subnet_segment_id(self):
@@ -155,6 +181,10 @@ class SystemAdminTests(SubnetAPITestCase):
             base_policy.InvalidScope,
             policy.enforce,
             self.context, 'get_subnets_tags', self.target_net_alt_target)
+        self.assertRaises(
+            base_policy.InvalidScope,
+            policy.enforce,
+            self.context, 'get_subnets_tags', self.target_net_ext_alt_target)
         self.assertRaises(
             base_policy.InvalidScope,
             policy.enforce,
@@ -250,21 +280,21 @@ class SystemAdminTests(SubnetAPITestCase):
 class SystemMemberTests(SystemAdminTests):
 
     def setUp(self):
-        super(SystemMemberTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
 
 class SystemReaderTests(SystemMemberTests):
 
     def setUp(self):
-        super(SystemReaderTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminTests(SubnetAPITestCase):
 
     def setUp(self):
-        super(AdminTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_create_subnet(self):
@@ -307,6 +337,9 @@ class AdminTests(SubnetAPITestCase):
             policy.enforce(self.context, 'get_subnet',
                            self.target_net_alt_target))
         self.assertTrue(
+            policy.enforce(self.context, 'get_subnet',
+                           self.target_net_ext_alt_target))
+        self.assertTrue(
             policy.enforce(self.context, 'get_subnet', self.alt_target))
 
     def test_get_subnet_segment_id(self):
@@ -325,6 +358,9 @@ class AdminTests(SubnetAPITestCase):
         self.assertTrue(
             policy.enforce(self.context, 'get_subnets_tags',
                            self.target_net_alt_target))
+        self.assertTrue(
+            policy.enforce(self.context, 'get_subnets_tags',
+                           self.target_net_ext_alt_target))
         self.assertTrue(
             policy.enforce(self.context, 'get_subnets_tags', self.alt_target))
 
@@ -391,11 +427,11 @@ class AdminTests(SubnetAPITestCase):
                            self.alt_target))
 
 
-class ProjectMemberTests(AdminTests):
+class ProjectManagerTests(AdminTests):
 
     def setUp(self):
-        super(ProjectMemberTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_create_subnet(self):
         self.assertTrue(
@@ -445,6 +481,9 @@ class ProjectMemberTests(AdminTests):
         self.assertTrue(
             policy.enforce(self.context, 'get_subnet',
                            self.target_net_alt_target))
+        self.assertTrue(
+            policy.enforce(self.context, 'get_subnet',
+                           self.target_net_ext_alt_target))
         self.assertRaises(
             base_policy.PolicyNotAuthorized,
             policy.enforce,
@@ -470,6 +509,9 @@ class ProjectMemberTests(AdminTests):
         self.assertTrue(
             policy.enforce(self.context, 'get_subnets_tags',
                            self.target_net_alt_target))
+        self.assertTrue(
+            policy.enforce(self.context, 'get_subnets_tags',
+                           self.target_net_ext_alt_target))
         self.assertRaises(
             base_policy.PolicyNotAuthorized,
             policy.enforce,
@@ -550,10 +592,17 @@ class ProjectMemberTests(AdminTests):
             self.context, 'delete_subnets_tags', self.alt_target)
 
 
+class ProjectMemberTests(ProjectManagerTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderTests(ProjectMemberTests):
 
     def setUp(self):
-        super(ProjectReaderTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
     def test_create_subnet(self):
@@ -630,7 +679,7 @@ class ProjectReaderTests(ProjectMemberTests):
 class ServiceRoleTests(SubnetAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_create_subnet(self):

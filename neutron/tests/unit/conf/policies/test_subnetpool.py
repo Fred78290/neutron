@@ -22,7 +22,7 @@ from neutron.tests.unit.conf.policies import test_base as base
 class SubnetpoolAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(SubnetpoolAPITestCase, self).setUp()
+        super().setUp()
         self.target = {'project_id': self.project_id}
         self.alt_target = {'project_id': self.alt_project_id}
 
@@ -30,7 +30,7 @@ class SubnetpoolAPITestCase(base.PolicyBaseTestCase):
 class SystemAdminTests(SubnetpoolAPITestCase):
 
     def setUp(self):
-        super(SystemAdminTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_create_subnetpool(self):
@@ -167,21 +167,21 @@ class SystemAdminTests(SubnetpoolAPITestCase):
 class SystemMemberTests(SystemAdminTests):
 
     def setUp(self):
-        super(SystemMemberTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
 
 class SystemReaderTests(SystemMemberTests):
 
     def setUp(self):
-        super(SystemReaderTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminTests(SubnetpoolAPITestCase):
 
     def setUp(self):
-        super(AdminTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_create_subnetpool(self):
@@ -276,11 +276,11 @@ class AdminTests(SubnetpoolAPITestCase):
             policy.enforce(self.context, 'remove_prefixes', self.alt_target))
 
 
-class ProjectMemberTests(AdminTests):
+class ProjectManagerTests(AdminTests):
 
     def setUp(self):
-        super(ProjectMemberTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_create_subnetpool(self):
         self.assertTrue(
@@ -396,10 +396,17 @@ class ProjectMemberTests(AdminTests):
             self.context, 'remove_prefixes', self.alt_target)
 
 
+class ProjectMemberTests(ProjectManagerTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderTests(ProjectMemberTests):
 
     def setUp(self):
-        super(ProjectReaderTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
     def test_create_subnetpool(self):
@@ -486,7 +493,7 @@ class ProjectReaderTests(ProjectMemberTests):
 class ServiceRoleTests(SubnetpoolAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_create_subnetpool(self):

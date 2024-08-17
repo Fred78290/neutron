@@ -194,10 +194,8 @@ class PortBindingUpdatedEvent(PortBindingEvent):
             ovn_const.OVN_CIDRS_EXT_ID_KEY, "")
         old_cidrs = old.external_ids.get(
             ovn_const.OVN_CIDRS_EXT_ID_KEY, "")
-        # If old_cidrs is "", it is create event,
-        # nothing needs to be done.
         # If old_cidrs equals new_cidrs, the ip does not change.
-        if old_cidrs not in ("", new_cidrs):
+        if old_cidrs != new_cidrs:
             self._log_msg = (
                 "Metadata Port %s in datapath %s updated")
             return True
@@ -685,7 +683,7 @@ class MetadataAgent(object):
         net_name = ovn_utils.get_network_name_from_datapath(datapath)
         datapath_uuid = str(datapath.uuid)
 
-        metadata_port = self.sb_idl.get_metadata_port_network(datapath_uuid)
+        metadata_port = self.sb_idl.get_metadata_port(datapath_uuid)
         # If there's no metadata port or it doesn't have a MAC address, then
         # tear the namespace down if needed.
         if not (metadata_port and metadata_port.mac):

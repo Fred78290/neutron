@@ -25,7 +25,7 @@ from neutron.tests.unit.conf.policies import test_base as base
 class LocalIPAssociationAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(LocalIPAssociationAPITestCase, self).setUp()
+        super().setUp()
         self.local_ip = {
             'id': uuidutils.generate_uuid(),
             'project_id': self.project_id}
@@ -49,7 +49,7 @@ class LocalIPAssociationAPITestCase(base.PolicyBaseTestCase):
 class SystemAdminTests(LocalIPAssociationAPITestCase):
 
     def setUp(self):
-        super(SystemAdminTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_create_local_ip_port_association(self):
@@ -92,21 +92,21 @@ class SystemAdminTests(LocalIPAssociationAPITestCase):
 class SystemMemberTests(SystemAdminTests):
 
     def setUp(self):
-        super(SystemMemberTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
 
 class SystemReaderTests(SystemMemberTests):
 
     def setUp(self):
-        super(SystemReaderTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminTests(LocalIPAssociationAPITestCase):
 
     def setUp(self):
-        super(AdminTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_create_local_ip_port_association(self):
@@ -140,11 +140,11 @@ class AdminTests(LocalIPAssociationAPITestCase):
                            self.alt_target))
 
 
-class ProjectMemberTests(AdminTests):
+class ProjectManagerTests(AdminTests):
 
     def setUp(self):
-        super(ProjectMemberTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_create_local_ip_port_association(self):
         self.assertTrue(
@@ -180,10 +180,17 @@ class ProjectMemberTests(AdminTests):
             self.alt_target)
 
 
+class ProjectMemberTests(ProjectManagerTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderTests(ProjectMemberTests):
 
     def setUp(self):
-        super(ProjectReaderTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
     def test_create_local_ip_port_association(self):
@@ -214,7 +221,7 @@ class ProjectReaderTests(ProjectMemberTests):
 class ServiceRoleTests(LocalIPAssociationAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_create_local_ip_port_association(self):

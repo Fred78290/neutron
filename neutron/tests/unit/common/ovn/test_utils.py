@@ -521,6 +521,20 @@ class TestDHCPUtils(base.BaseTestCase):
         expected_options = {'domain_search_list': '"openstack.org,ovn.org"'}
         self.assertEqual(expected_options, options)
 
+    def test_get_lsp_dhcp_opts_sanitize_map(self):
+        opt = {'opt_name': 'classless-static-route',
+               'opt_value': '128.128.128.128/32,22.2.0.2',
+               'ip_version': 4}
+        port = {portbindings.VNIC_TYPE: portbindings.VNIC_NORMAL,
+                edo_ext.EXTRADHCPOPTS: [opt]}
+        dhcp_disabled, options = utils.get_lsp_dhcp_opts(port, 4)
+        self.assertFalse(dhcp_disabled)
+        # Assert option got translated to "classless_static_route" and
+        # the value is a map (wrapped with {})
+        expected_options = {
+            'classless_static_route': '{128.128.128.128/32,22.2.0.2}'}
+        self.assertEqual(expected_options, options)
+
 
 class TestGetDhcpDnsServers(base.BaseTestCase):
 
@@ -741,6 +755,11 @@ class TestValidateAndGetDataFromBindingProfile(base.BaseTestCase):
             utils.validate_and_get_data_from_binding_profile(
                 {portbindings.VNIC_TYPE: portbindings.VNIC_DIRECT,
                  constants.OVN_PORT_BINDING_PROFILE: binding_profile}))
+
+    def test_valid_input_no_binding_profile(self):
+        # Confirm that we treat a port without binding:profile as valid
+        self.assertEqual(utils.BPInfo({}, None, []),
+                         utils.validate_and_get_data_from_binding_profile({}))
 
     def test_unknown_profile_items_pruned(self):
         # Confirm that unknown profile items are pruned

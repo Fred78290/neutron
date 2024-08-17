@@ -63,7 +63,7 @@ class PolicyBaseTestCase(tests_base.BaseTestCase):
         # merged and released in oslo_policy
         cfg.CONF.set_override(
             'enforce_scope', True, group='oslo_policy')
-        super(PolicyBaseTestCase, self).setUp()
+        super().setUp()
         self.project_id = uuidutils.generate_uuid()
         self.system_user_id = uuidutils.generate_uuid()
         self.user_id = uuidutils.generate_uuid()
@@ -89,7 +89,11 @@ class PolicyBaseTestCase(tests_base.BaseTestCase):
     def _prepare_project_scope_personas(self):
         self.project_admin_ctx = context.Context(
             user_id=self.user_id,
-            roles=['admin', 'member', 'reader'],
+            roles=['admin', 'manager', 'member', 'reader'],
+            project_id=self.project_id)
+        self.project_manager_ctx = context.Context(
+            user_id=self.user_id,
+            roles=['manager', 'member', 'reader'],
             project_id=self.project_id)
         self.project_member_ctx = context.Context(
             user_id=self.user_id,
@@ -110,7 +114,7 @@ class PolicyBaseTestCase(tests_base.BaseTestCase):
 class RuleScopesTestCase(PolicyBaseTestCase):
 
     def setUp(self):
-        super(RuleScopesTestCase, self).setUp()
+        super().setUp()
         policy.init()
 
     def test_rules_are_single_scoped(self):

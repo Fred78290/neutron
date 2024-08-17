@@ -52,6 +52,12 @@ ACTION_DELETE_TAGS = [
 
 
 rules = [
+    policy.RuleDefault(
+        name='external_network',
+        check_str='field:subnets:router:external=True',
+        description='Definition of a subnet that belongs to an external '
+                    'network'
+    ),
     policy.DocumentedRuleDefault(
         name='create_subnet',
         check_str=base.ADMIN_OR_NET_OWNER_MEMBER,
@@ -95,17 +101,21 @@ rules = [
     policy.DocumentedRuleDefault(
         name='get_subnet',
         check_str=neutron_policy.policy_or(
-            base.ADMIN_OR_NET_OWNER_MEMBER,
             base.PROJECT_READER,
-            'rule:shared'),
+            'rule:shared',
+            'rule:external_network',
+            base.ADMIN_OR_NET_OWNER_MEMBER,
+        ),
         scope_types=['project'],
         description='Get a subnet',
         operations=ACTION_GET,
         deprecated_rule=policy.DeprecatedRule(
             name='get_subnet',
             check_str=neutron_policy.policy_or(
+                'rule:shared',
+                'rule:external_network',
                 neutron_policy.RULE_ADMIN_OR_OWNER,
-                'rule:shared'),
+            ),
             deprecated_reason=DEPRECATED_REASON,
             deprecated_since=versionutils.deprecated.WALLABY)
     ),
@@ -124,9 +134,11 @@ rules = [
     policy.DocumentedRuleDefault(
         name='get_subnets_tags',
         check_str=neutron_policy.policy_or(
-            base.ADMIN_OR_NET_OWNER_MEMBER,
             base.PROJECT_READER,
-            'rule:shared'),
+            'rule:shared',
+            'rule:external_network',
+            base.ADMIN_OR_NET_OWNER_MEMBER,
+        ),
         scope_types=['project'],
         description='Get the subnet tags',
         operations=ACTION_GET_TAGS,
@@ -134,8 +146,8 @@ rules = [
     policy.DocumentedRuleDefault(
         name='update_subnet',
         check_str=neutron_policy.policy_or(
-            base.ADMIN_OR_NET_OWNER_MEMBER,
-            base.PROJECT_MEMBER),
+            base.PROJECT_MEMBER,
+            base.ADMIN_OR_NET_OWNER_MEMBER),
         scope_types=['project'],
         description='Update a subnet',
         operations=ACTION_PUT,
@@ -172,8 +184,9 @@ rules = [
     policy.DocumentedRuleDefault(
         name='update_subnets_tags',
         check_str=neutron_policy.policy_or(
+            base.PROJECT_MEMBER,
             base.ADMIN_OR_NET_OWNER_MEMBER,
-            base.PROJECT_MEMBER),
+        ),
         scope_types=['project'],
         description='Update the subnet tags',
         operations=ACTION_PUT_TAGS,
@@ -181,8 +194,9 @@ rules = [
     policy.DocumentedRuleDefault(
         name='delete_subnet',
         check_str=neutron_policy.policy_or(
+            base.PROJECT_MEMBER,
             base.ADMIN_OR_NET_OWNER_MEMBER,
-            base.PROJECT_MEMBER),
+        ),
         scope_types=['project'],
         description='Delete a subnet',
         operations=ACTION_DELETE,
@@ -195,8 +209,9 @@ rules = [
     policy.DocumentedRuleDefault(
         name='delete_subnets_tags',
         check_str=neutron_policy.policy_or(
+            base.PROJECT_MEMBER,
             base.ADMIN_OR_NET_OWNER_MEMBER,
-            base.PROJECT_MEMBER),
+        ),
         scope_types=['project'],
         description='Delete the subnet tags',
         operations=ACTION_DELETE_TAGS,

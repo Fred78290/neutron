@@ -66,6 +66,8 @@ from neutron_lib.api.definitions import \
 from neutron_lib.api.definitions import security_groups_shared_filtering
 from neutron_lib.api.definitions import stateful_security_group
 from neutron_lib.api.definitions import subnet as subnet_def
+from neutron_lib.api.definitions import subnet_external_network as \
+    subnet_ext_net_def
 from neutron_lib.api.definitions import subnet_onboard as subnet_onboard_def
 from neutron_lib.api.definitions import subnet_service_types
 from neutron_lib.api.definitions import subnetpool_prefix_ops \
@@ -250,6 +252,7 @@ class Ml2Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                                     sg_default_rules_ext.ALIAS,
                                     sg_rules_default_sg.ALIAS,
                                     phot_def.ALIAS,
+                                    subnet_ext_net_def.ALIAS,
                                     ]
 
     # List of agent types for which all binding_failed ports should try to be
@@ -795,6 +798,7 @@ class Ml2Plugin(db_base_plugin_v2.NeutronDbPluginV2,
                     # Expire the "binding_levels" and fetch them into the port.
                     plugin_context.session.flush()
                     getattr(port_db, 'binding_levels')
+                    port_db.bump_revision()
                 # refresh context with a snapshot of updated state
                 cur_context._binding = driver_context.InstanceSnapshot(
                     cur_context_binding)

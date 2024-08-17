@@ -217,6 +217,10 @@ OVN_STR_TYPE_DHCP_OPTS = [
     'wpad',
     'tftp_server']
 
+OVN_MAP_TYPE_DHCP_OPTS = [
+    'classless_static_route',
+]
+
 # Special option for disabling DHCP via extra DHCP options
 DHCP_DISABLED_OPT = 'dhcp_disabled'
 
@@ -271,6 +275,8 @@ _TYPES_PRIORITY_ORDER = (
     TYPE_SECURITY_GROUP_RULES)
 
 DB_CONSISTENCY_CHECK_INTERVAL = 300  # 5 minutes
+MAINTENANCE_TASK_RETRY_LIMIT = 100  # times
+MAINTENANCE_ONE_RUN_TASK_SPACING = 5  # seconds
 
 # The order in which the resources should be created or updated by the
 # maintenance task: Root ones first and leafs at the end.
@@ -418,6 +424,8 @@ BRIDGE_REDIRECT_TYPE = "bridged"
 # FDB AGE Settings
 LS_OPTIONS_FDB_AGE_THRESHOLD = 'fdb_age_threshold'
 
+LS_OPTIONS_BROADCAST_ARPS_ROUTERS = 'broadcast-arps-to-all-routers'
+
 # Port Binding types
 PB_TYPE_VIRTUAL = 'virtual'
 
@@ -443,10 +451,6 @@ CMS_OPT_CARD_SERIAL_NUMBER = 'card-serial-number'
 
 # OVN vlan transparency option
 VLAN_PASSTHRU = 'vlan-passthru'
-
-# OVN Placement API; used for minimum bandwidth scheduling allocation.
-# NOTE(ralonsoh): rehome to neutron-lib
-RP_HYPERVISORS = 'resource_provider_hypervisors'
 
 # OVN mechanism driver constants.
 OVN_RP_UUID = uuid.UUID('5533233b-800c-11eb-b1f4-000056b2f5b8')

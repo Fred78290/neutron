@@ -15,6 +15,7 @@
 
 from neutron_lib.api.definitions import external_net as extnet_apidef
 from neutron_lib.api.definitions import network as net_def
+from neutron_lib.api.definitions import subnet as subnet_def
 from neutron_lib.api import validators
 from neutron_lib.callbacks import events
 from neutron_lib.callbacks import registry
@@ -22,12 +23,10 @@ from neutron_lib.callbacks import resources
 from neutron_lib import constants
 from neutron_lib.db import model_query
 from neutron_lib.db import resource_extend
-from neutron_lib.db import utils as db_utils
 from neutron_lib import exceptions as n_exc
 from neutron_lib.exceptions import external_net as extnet_exc
 from neutron_lib.plugins import constants as plugin_constants
 from neutron_lib.plugins import directory
-from sqlalchemy.sql import expression as expr
 
 from neutron._i18n import _
 from neutron.db import models_v2
@@ -38,23 +37,9 @@ from neutron.objects import ports as port_obj
 from neutron.objects import router as l3_obj
 
 
-def _network_filter_hook(context, original_model, conditions):
-    if conditions is not None and not hasattr(conditions, '__iter__'):
-        conditions = (conditions, )
-    # Apply the external network filter only in non-admin and non-advsvc
-    # context
-    if db_utils.model_query_scope_is_project(context, original_model):
-        # the table will already be joined to the rbac entries for the
-        # shared check so we don't need to worry about ensuring that
-        rbac_model = original_model.rbac_entries.property.mapper.class_
-        tenant_allowed = (
-            (rbac_model.action == rbac_db_models.ACCESS_EXTERNAL) &
-            (rbac_model.target_project == context.tenant_id) |
-            (rbac_model.target_project == '*'))
-        conditions = expr.or_(tenant_allowed, *conditions)
-        conditions = expr.or_(original_model.tenant_id == context.tenant_id,
-                              *conditions)
-    return conditions
+EXTERNAL_NETWORK_RBAC_ACTIONS = {constants.ACCESS_SHARED,
+                                 constants.ACCESS_READONLY,
+                                 constants.ACCESS_EXTERNAL}
 
 
 def _network_result_filter_hook(query, filters):
@@ -76,8 +61,18 @@ class External_net_db_mixin(object):
             models_v2.Network,
             "external_net",
             query_hook=None,
-            filter_hook=_network_filter_hook,
-            result_filters=_network_result_filter_hook)
+            filter_hook=None,
+            result_filters=_network_result_filter_hook,
+            rbac_actions=EXTERNAL_NETWORK_RBAC_ACTIONS,
+        )
+        model_query.register_hook(
+            models_v2.Subnet,
+            "external_subnet",
+            query_hook=None,
+            filter_hook=None,
+            result_filters=None,
+            rbac_actions=EXTERNAL_NETWORK_RBAC_ACTIONS,
+        )
         return super(External_net_db_mixin, cls).__new__(cls, *args, **kwargs)
 
     def _network_is_external(self, context, net_id):
@@ -90,6 +85,13 @@ class External_net_db_mixin(object):
         # Comparing with None for converting uuid into bool
         network_res[extnet_apidef.EXTERNAL] = network_db.external is not None
         return network_res
+
+    @staticmethod
+    @resource_extend.extends([subnet_def.COLLECTION_NAME])
+    def _extend_subnet_dict_l3(subnet_res, subnet_db):
+        # Comparing with None for converting uuid into bool
+        subnet_res[extnet_apidef.EXTERNAL] = bool(subnet_db.external)
+        return subnet_res
 
     def _process_l3_create(self, context, net_data, req_data):
         external = req_data.get(extnet_apidef.EXTERNAL)

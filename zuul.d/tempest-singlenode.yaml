@@ -57,6 +57,7 @@
       devstack_localrc:
         Q_AGENT: openvswitch
         Q_ML2_PLUGIN_MECHANISM_DRIVERS: openvswitch
+        NEUTRON_DEPLOY_MOD_WSGI: true
     irrelevant-files: &openvswitch-irrelevant-files
       - ^\.pylintrc$
       - ^test-requirements.txt$
@@ -73,7 +74,6 @@
       - ^tools/ovn_migration/.*$
       - ^vagrant/.*$
       - ^neutron/agent/ovn/.*$
-      - ^neutron/agent/windows/.*$
       - ^neutron/plugins/ml2/drivers/linuxbridge/.*$
       - ^neutron/plugins/ml2/drivers/macvtap/.*$
       - ^neutron/plugins/ml2/drivers/mech_sriov/.*$
@@ -89,7 +89,13 @@
       - ^neutron/common/ovn/.*$
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
 
 - job:
     name: neutron-ovs-tempest-dvr
@@ -136,7 +142,6 @@
       - ^vagrant/.*$
       - ^neutron/agent/linux/openvswitch_firewall/.*$
       - ^neutron/agent/ovn/.*$
-      - ^neutron/agent/windows/.*$
       - ^neutron/plugins/ml2/drivers/openvswitch/.*$
       - ^neutron/plugins/ml2/drivers/macvtap/.*$
       - ^neutron/plugins/ml2/drivers/mech_sriov/.*$
@@ -153,7 +158,13 @@
       - ^neutron/common/ovn/.*$
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
 
 - job:
     name: neutron-ovs-tempest-iptables_hybrid
@@ -262,7 +273,13 @@
       - ^neutron/plugins/ml2/drivers/.*$
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
 
 - job:
     name: neutron-ovn-tempest-mariadb-full
@@ -344,13 +361,18 @@
       - ^plugin.spec$
       - ^tools/ovn_migration/.*$
       - ^vagrant/.*$
-      - ^neutron/agent/windows/.*$
       - ^neutron/plugins/ml2/drivers/linuxbridge/.*$
       - ^neutron/plugins/ml2/drivers/macvtap/.*$
       - ^neutron/plugins/ml2/drivers/mech_sriov/.*$
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
 
 - job:
     name: neutron-ovn-tempest-with-neutron-lib-master
@@ -487,7 +509,13 @@
       - ^vagrant/.*$
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
 
 - job:
     name: neutron-ovn-tempest-with-uwsgi-loki
@@ -612,7 +640,6 @@
       - ^neutron/agent/l2/.*$
       - ^neutron/agent/l3/.*$
       - ^neutron/agent/metadata/.*$
-      - ^neutron/agent/windows/.*$
       - ^neutron/agent/dhcp_agent.py
       - ^neutron/agent/l3_agent.py
       - ^neutron/agent/metadata_agent.py
@@ -630,7 +657,13 @@
       - ^neutron/scheduler/.*$
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
 
 - job:
     name: neutron-ovn-tempest-ovs-release
@@ -647,7 +680,7 @@
         OVN_BUILD_FROM_SOURCE: True
         OVN_BRANCH: main
         # NOTE(ykarel): OVN main branch following OVS stable branch
-        OVS_BRANCH: branch-3.3
+        OVS_BRANCH: branch-3.4
 
 - job:
     name: neutron-ovn-tempest-ovs-release-with-oslo-master
@@ -796,7 +829,7 @@
         OVN_BUILD_FROM_SOURCE: True
         OVN_BRANCH: "main"
         # NOTE(ykarel): OVN main branch following OVS stable branch
-        OVS_BRANCH: branch-3.3
+        OVS_BRANCH: branch-3.4
 
 - job:
     name: neutron-ovn-tempest-with-sqlalchemy-master

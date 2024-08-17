@@ -19,7 +19,6 @@
       - ^plugin.spec$
       - ^tools/ovn_migration/.*$
       - ^neutron/agent/ovn/.*$
-      - ^neutron/agent/windows/.*$
       - ^neutron/plugins/ml2/drivers/linuxbridge/.*$
       - ^neutron/plugins/ml2/drivers/macvtap/.*$
       - ^neutron/plugins/ml2/drivers/mech_sriov/.*$
@@ -36,7 +35,13 @@
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
       - ^vagrant/.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
     vars:
       grenade_devstack_localrc:
         shared:
@@ -234,7 +239,6 @@
       - ^neutron/agent/l2/.*$
       - ^neutron/agent/l3/.*$
       - ^neutron/agent/metadata/.*$
-      - ^neutron/agent/windows/.*$
       - ^neutron/agent/dhcp_agent.py
       - ^neutron/agent/l3_agent.py
       - ^neutron/agent/metadata_agent.py
@@ -253,7 +257,13 @@
       - ^roles/.*functional.*$
       - ^playbooks/.*functional.*$
       - ^vagrant/.*$
-      - ^zuul.d/(?!(project)).*\.yaml
+      # Ignore everything except for zuul.d/project.yaml
+      - ^zuul.d/base.yaml
+      - ^zuul.d/grenade.yaml
+      - ^zuul.d/job-templates.yaml
+      - ^zuul.d/rally.yaml
+      - ^zuul.d/tempest-multinode.yaml
+      - ^zuul.d/tempest-singlenode.yaml
     roles:
       - zuul: openstack/neutron-tempest-plugin
     required-projects:
@@ -378,11 +388,11 @@
       specific releases as prescribed by our process.
     vars:
       # Move this forward when master changes to a new skip-level-allowed
-      # target release. Right now, this is Antelope (2023.1) because master is
+      # target release. Right now, this is Bobcat (2023.2) because master is
       # Dalmation (2024.2).
       # When master is E (2025.1), this should become Caracal (2024.1),
       # and so forth.
-      grenade_from_branch: stable/2023.1
+      grenade_from_branch: stable/2023.2
       grenade_localrc:
         NOVA_ENABLE_UPGRADE_WORKAROUND: True
 
@@ -394,10 +404,10 @@
       specific releases as prescribed by our process.
     vars:
       # Move this forward when master changes to a new skip-level-allowed
-      # target release. Right now, this is Antelope (2023.1) because master is
+      # target release. Right now, this is Bobcat (2023.2) because master is
       # Dalmation (2024.2).
       # When master is E (2025.1), this should become Caracal (2024.1),
       # and so forth.
-      grenade_from_branch: stable/2023.1
+      grenade_from_branch: stable/2023.2
       grenade_localrc:
         NOVA_ENABLE_UPGRADE_WORKAROUND: True

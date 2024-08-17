@@ -37,6 +37,7 @@ from neutron.agent.linux import dhcp
 from neutron.agent.linux import interface
 from neutron.agent.linux import utils as linux_utils
 from neutron.agent.metadata import driver as metadata_driver
+from neutron.agent.metadata import driver_base as metadata_driver_base
 from neutron.common import config as common_config
 from neutron.common.ovn import constants as ovn_const
 from neutron.common import utils
@@ -395,11 +396,8 @@ class TestDhcpAgent(base.BaseTestCase):
             # The public function call_driver() is calling the private
             # _call_driver().
             _call_driver.assert_has_calls([
-                mock.call("disable", network, segment=None, block=True),
-                # It is not possible to assert on 'network' as there is a copy
-                # happening. The copy will be removed, see bug #2051729.
-                mock.call("enable", mock.ANY, segment=seg0),
-                mock.call("enable", mock.ANY, segment=seg1)])
+                mock.call("enable", network, segment=seg0),
+                mock.call("enable", network, segment=seg1)])
 
     def test_call_driver_no_network(self):
         network = None
@@ -681,6 +679,29 @@ class TestDhcpAgent(base.BaseTestCase):
                          dhcp.cache.get_network_ids())
         self.assertNotIn(fake_port_subnet_2.id, dhcp.dhcp_ready_ports)
 
+    def test_safe_configure_dhcp_for_network(self):
+        dhcp = dhcp_agent.DhcpAgent(HOSTNAME)
+        with mock.patch.object(
+                dhcp, 'update_isolated_metadata_proxy') as ump, \
+            mock.patch.object(
+                dhcp, 'call_driver', return_value=True):
+            dhcp.safe_configure_dhcp_for_network(fake_network)
+
+        ump.assert_called_once_with(fake_network)
+        self.assertIn(fake_network.id, dhcp.cache.get_network_ids())
+        self.assertIn(fake_port1.id, dhcp.dhcp_ready_ports)
+
+    def test_safe_configure_dhcp_for_network_exception(self):
+        # This should return without raising an exception
+        dhcp = dhcp_agent.DhcpAgent(HOSTNAME)
+        with mock.patch.object(
+                dhcp, 'configure_dhcp_for_network',
+                side_effect=RuntimeError):
+            dhcp.safe_configure_dhcp_for_network(fake_network)
+
+        self.assertNotIn(fake_network.id, dhcp.cache.get_network_ids())
+        self.assertNotIn(fake_port1.id, dhcp.dhcp_ready_ports)
+
     @mock.patch.object(linux_utils, 'delete_if_exists')
     def test_dhcp_ready_ports_updates_after_enable_dhcp(self, *args):
         with mock.patch('neutron.agent.linux.ip_lib.'
@@ -838,15 +859,14 @@ class TestDhcpAgentEventHandler(base.BaseTestCase):
             'neutron.agent.linux.external_process.ProcessManager'
         )
         self.external_process = self.external_process_p.start()
-        self.mock_resize_p = mock.patch('neutron.agent.dhcp.agent.'
-                                        'DhcpAgent._resize_process_pool')
-        self.mock_resize = self.mock_resize_p.start()
         self.mock_wait_until_address_ready_p = mock.patch(
             'neutron.agent.linux.ip_lib.'
             'IpAddrCommand.wait_until_address_ready')
         self.mock_wait_until_address_ready_p.start()
         mock.patch.object(linux_utils, 'delete_if_exists').start()
         self.addCleanup(self.mock_wait_until_address_ready_p.stop)
+        mock.patch.object(metadata_driver_base, 'SIGTERM_TIMEOUT',
+                          new=0).start()
 
     def _process_manager_constructor_call(self, ns=FAKE_NETWORK_DHCP_NS):
         return mock.call(conf=cfg.CONF,

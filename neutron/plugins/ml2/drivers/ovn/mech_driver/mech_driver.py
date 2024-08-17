@@ -47,6 +47,7 @@ from oslo_utils import timeutils
 from ovsdbapp.backend.ovs_idl import idlutils
 
 from neutron._i18n import _
+from neutron.api import wsgi
 from neutron.common.ovn import acl as ovn_acl
 from neutron.common.ovn import constants as ovn_const
 from neutron.common.ovn import exceptions as ovn_exceptions
@@ -72,7 +73,6 @@ from neutron.services.logapi.drivers.ovn import driver as log_driver
 from neutron.services.qos.drivers.ovn import driver as qos_driver
 from neutron.services.segments import db as segment_service_db
 from neutron.services.trunk.drivers.ovn import trunk_driver
-import neutron.wsgi
 
 
 LOG = log.getLogger(__name__)
@@ -299,7 +299,7 @@ class OVNMechanismDriver(api.MechanismDriver):
 
     @staticmethod
     def should_post_fork_initialize(worker_class):
-        return worker_class in (neutron.wsgi.WorkerService,
+        return worker_class in (wsgi.WorkerService,
                                 worker.MaintenanceWorker,
                                 service.RpcWorker)
 
@@ -344,7 +344,7 @@ class OVNMechanismDriver(api.MechanismDriver):
         self._post_fork_event.clear()
         self._ovn_client_inst = None
 
-        if worker_class == neutron.wsgi.WorkerService:
+        if worker_class == wsgi.WorkerService:
             self._setup_hash_ring()
 
         n_agent.AgentCache(self)  # Initialize singleton agent cache
@@ -794,6 +794,9 @@ class OVNMechanismDriver(api.MechanismDriver):
                     port['revision_number'] = db_port['revision_number']
                     self._ovn_update_port(plugin_context, port, original_port,
                                           retry_on_revision_mismatch=False)
+        except ovn_revision_numbers_db.StandardAttributeIDNotFound:
+            LOG.debug("Standard attribute was not found for port %s. It was "
+                      "possibly deleted concurrently.", port['id'])
 
     def create_port_postcommit(self, context):
         """Create a port.
@@ -1082,9 +1085,11 @@ class OVNMechanismDriver(api.MechanismDriver):
             hostname = ''
 
         # Updates neutron database with hostname for virtual port
-        self._plugin.update_virtual_port_host(n_context.get_admin_context(),
-                                              port_id, hostname)
-
+        context = n_context.get_admin_context()
+        self._plugin.update_virtual_port_host(context, port_id, hostname)
+        db_port = self._plugin.get_port(context, port_id)
+        check_rev_cmd = self.nb_ovn.check_revision_number(
+            port_id, db_port, ovn_const.TYPE_PORTS)
         # Updates OVN NB database with hostname for lsp virtual port
         with self.nb_ovn.transaction(check_error=True) as txn:
             ext_ids = ('external_ids',
@@ -1092,6 +1097,10 @@ class OVNMechanismDriver(api.MechanismDriver):
             txn.add(
                 self.nb_ovn.db_set(
                     'Logical_Switch_Port', port_id, ext_ids))
+            txn.add(check_rev_cmd)
+        if check_rev_cmd.result == ovn_const.TXN_COMMITTED:
+            ovn_revision_numbers_db.bump_revision(context, db_port,
+                                                  ovn_const.TYPE_PORTS)
 
     def get_workers(self):
         """Get any worker instances that should have their own process

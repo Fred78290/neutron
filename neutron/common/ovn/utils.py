@@ -315,6 +315,10 @@ def is_dhcp_option_quoted(opt_value):
     return opt_value.startswith('"') and opt_value.endswith('"')
 
 
+def is_dhcp_option_a_map(opt_value):
+    return opt_value.startswith('{') and opt_value.endswith('}')
+
+
 def get_lsp_dhcp_opts(port, ip_version):
     # Get dhcp options from Neutron port, for setting DHCP_Options row
     # in OVN.
@@ -353,6 +357,9 @@ def get_lsp_dhcp_opts(port, ip_version):
             if (opt in constants.OVN_STR_TYPE_DHCP_OPTS and
                     not is_dhcp_option_quoted(edo['opt_value'])):
                 edo['opt_value'] = '"%s"' % edo['opt_value']
+            elif (opt in constants.OVN_MAP_TYPE_DHCP_OPTS and
+                  not is_dhcp_option_a_map(edo['opt_value'])):
+                edo['opt_value'] = '{%s}' % edo['opt_value']
             lsp_dhcp_opts[opt] = edo['opt_value']
 
     return (lsp_dhcp_disabled, lsp_dhcp_opts)
@@ -426,7 +433,7 @@ def validate_and_get_data_from_binding_profile(port):
     if (constants.OVN_PORT_BINDING_PROFILE not in port or
             not validators.is_attr_set(
                 port[constants.OVN_PORT_BINDING_PROFILE])):
-        BPInfo({}, None, [])
+        return BPInfo({}, None, [])
     param_set = {}
     param_dict = {}
     vnic_type = port.get(portbindings.VNIC_TYPE, portbindings.VNIC_NORMAL)
@@ -699,10 +706,12 @@ def get_port_subnet_ids(port):
     return [f['subnet_id'] for f in fixed_ips]
 
 
-def get_method_class(method):
-    if not inspect.ismethod(method):
+def get_method_class(method_or_class):
+    if not inspect.ismethod(method_or_class):
+        if inspect.isclass(method_or_class):
+            return method_or_class
         return
-    return method.__self__.__class__
+    return method_or_class.__self__.__class__
 
 
 def ovn_metadata_name(id_):

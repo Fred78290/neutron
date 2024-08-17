@@ -34,11 +34,13 @@ from oslo_utils import excutils
 from oslo_utils import importutils
 import psutil
 
+from neutron.api import wsgi
 from neutron.common import config
 from neutron.common import profiler
 from neutron.conf import service
+from neutron.plugins.ml2.drivers.ovn.mech_driver.ovsdb import worker as \
+    ovn_worker
 from neutron import worker as neutron_worker
-from neutron import wsgi
 
 
 service.register_service_opts(service.SERVICE_OPTS)
@@ -100,7 +102,8 @@ class RpcWorker(neutron_worker.NeutronBaseWorker):
 
     def __init__(self, plugins, worker_process_count=1):
         super(RpcWorker, self).__init__(
-            worker_process_count=worker_process_count
+            worker_process_count=worker_process_count,
+            desc=self.desc,
         )
 
         self._plugins = plugins
@@ -225,6 +228,12 @@ def _get_plugins_workers():
     ]
 
 
+def _get_ovn_maintenance_worker():
+    for worker in _get_plugins_workers():
+        if isinstance(worker, ovn_worker.MaintenanceWorker):
+            return worker
+
+
 class AllServicesNeutronWorker(neutron_worker.NeutronBaseWorker):
     def __init__(self, services, worker_process_count=1):
         super(AllServicesNeutronWorker, self).__init__(worker_process_count)
@@ -303,8 +312,18 @@ def start_all_workers(neutron_api=None):
 
 def start_rpc_workers():
     rpc_workers = _get_rpc_workers()
-    LOG.debug('using launcher for rpc, workers=%s', cfg.CONF.rpc_workers)
+    LOG.debug('Using launcher for rpc, workers=%s (configured rpc_workers=%s)',
+              len(rpc_workers), cfg.CONF.rpc_workers)
     launcher = _start_workers(rpc_workers)
+    registry.publish(resources.PROCESS, events.AFTER_SPAWN, None)
+    return launcher
+
+
+def start_periodic_workers():
+    periodic_workers = _get_plugins_workers()
+    thread_workers = [worker for worker in periodic_workers
+                      if worker.worker_process_count < 1]
+    launcher = _start_workers(thread_workers)
     registry.publish(resources.PROCESS, events.AFTER_SPAWN, None)
     return launcher
 
@@ -312,6 +331,14 @@ def start_rpc_workers():
 def start_plugins_workers():
     plugins_workers = _get_plugins_workers()
     return _start_workers(plugins_workers)
+
+
+def start_ovn_maintenance_worker():
+    ovn_maintenance_worker = _get_ovn_maintenance_worker()
+    if not ovn_maintenance_worker:
+        return
+
+    return _start_workers([ovn_maintenance_worker])
 
 
 def _get_api_workers():

@@ -25,7 +25,7 @@ DELETE_POLICY = 'delete_auto_allocated_topology'
 class AutoAllocatedTopologyAPITestCase(base.PolicyBaseTestCase):
 
     def setUp(self):
-        super(AutoAllocatedTopologyAPITestCase, self).setUp()
+        super().setUp()
         self.target = {'project_id': self.project_id}
         self.alt_target = {'project_id': self.alt_project_id}
 
@@ -33,7 +33,7 @@ class AutoAllocatedTopologyAPITestCase(base.PolicyBaseTestCase):
 class SystemAdminTests(AutoAllocatedTopologyAPITestCase):
 
     def setUp(self):
-        super(SystemAdminTests, self).setUp()
+        super().setUp()
         self.context = self.system_admin_ctx
 
     def test_get_topology(self):
@@ -65,7 +65,7 @@ class SystemAdminTests(AutoAllocatedTopologyAPITestCase):
 class SystemMemberTests(AutoAllocatedTopologyAPITestCase):
 
     def setUp(self):
-        super(SystemMemberTests, self).setUp()
+        super().setUp()
         self.context = self.system_member_ctx
 
     def test_delete_topology(self):
@@ -84,14 +84,14 @@ class SystemMemberTests(AutoAllocatedTopologyAPITestCase):
 class SystemReaderTests(SystemMemberTests):
 
     def setUp(self):
-        super(SystemReaderTests, self).setUp()
+        super().setUp()
         self.context = self.system_reader_ctx
 
 
 class AdminTests(AutoAllocatedTopologyAPITestCase):
 
     def setUp(self):
-        super(AdminTests, self).setUp()
+        super().setUp()
         self.context = self.project_admin_ctx
 
     def test_get_topology(self):
@@ -107,11 +107,11 @@ class AdminTests(AutoAllocatedTopologyAPITestCase):
             policy.enforce(self.context, DELETE_POLICY, self.alt_target))
 
 
-class ProjectMemberTests(AdminTests):
+class ProjectManagerTests(AdminTests):
 
     def setUp(self):
-        super(ProjectMemberTests, self).setUp()
-        self.context = self.project_member_ctx
+        super().setUp()
+        self.context = self.project_manager_ctx
 
     def test_get_topology(self):
         self.assertTrue(policy.enforce(self.context, GET_POLICY, self.target))
@@ -134,10 +134,17 @@ class ProjectMemberTests(AdminTests):
         )
 
 
+class ProjectMemberTests(ProjectManagerTests):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.project_member_ctx
+
+
 class ProjectReaderTests(ProjectMemberTests):
 
     def setUp(self):
-        super(ProjectReaderTests, self).setUp()
+        super().setUp()
         self.context = self.project_reader_ctx
 
     def test_delete_topology(self):
@@ -158,7 +165,7 @@ class ProjectReaderTests(ProjectMemberTests):
 class ServiceRoleTests(AutoAllocatedTopologyAPITestCase):
 
     def setUp(self):
-        super(ServiceRoleTests, self).setUp()
+        super().setUp()
         self.context = self.service_ctx
 
     def test_get_topology(self):

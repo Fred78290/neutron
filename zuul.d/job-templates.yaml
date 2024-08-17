@@ -22,7 +22,13 @@
               - ^playbooks/.*$
               - ^roles/.*$
               - ^rally-jobs/.*$
-              - ^zuul.d/(?!(job-templates)).*\.yaml
+              # Ignore everything except for zuul.d/job-templates.yaml
+              - ^zuul.d/base.yaml
+              - ^zuul.d/grenade.yaml
+              - ^zuul.d/project.yaml
+              - ^zuul.d/rally.yaml
+              - ^zuul.d/tempest-multinode.yaml
+              - ^zuul.d/tempest-singlenode.yaml
         - openstack-tox-py311: # from openstack-python3-jobs template
             timeout: 3600
             irrelevant-files:  *irrelevant-files
@@ -31,10 +37,14 @@
             irrelevant-files:  *irrelevant-files
         - openstack-tox-cover:  # from openstack-cover-jobs template
             timeout: 4800
+            pre-run: playbooks/configure_swap.yaml
+            vars:
+              configure_swap_size: 4096
             irrelevant-files:  *irrelevant-files
         - openstack-tox-py311-with-sqlalchemy-master:
             timeout: 3600
             irrelevant-files: *irrelevant-files
+            voting: false
     check-arm64:
       jobs:
         - openstack-tox-py39-arm64: # from openstack-python3-jobs-arm64 template
@@ -67,11 +77,12 @@
         - neutron-functional-with-uwsgi-with-neutron-lib-master
         - neutron-fullstack-with-uwsgi-with-neutron-lib-master
         - neutron-ovn-tempest-full-multinode-ovs-master
-        - neutron-ovn-grenade-multinode
         - neutron-ovn-tempest-ovs-master
         - neutron-ovn-tempest-ovs-release
         - neutron-ovs-tempest-with-neutron-lib-master
         - neutron-ovn-tempest-with-uwsgi-loki
+        - neutron-tempest-plugin-api-ovs-wsgi
+        - neutron-tempest-plugin-api-ovn-wsgi
         # Jobs added to the periodic queue by templates defined in
         # https://opendev.org/openstack/openstack-zuul-jobs/src/branch/master/zuul.d/project-templates.yaml
         - openstack-tox-py311-with-neutron-lib-master:
@@ -95,6 +106,7 @@
         - neutron-fullstack
         - neutron-fullstack-with-uwsgi-fips
         - neutron-fullstack-with-pyroute2-master
+        - neutron-ovs-grenade-dvr-multinode
         - neutron-ovs-tempest-slow
         - neutron-ovn-tempest-slow
         - neutron-ovs-tempest-with-os-ken-master
@@ -121,6 +133,8 @@
         - neutron-ovs-tempest-with-oslo-master
         - neutron-ovn-tempest-ovs-release-with-oslo-master
         - neutron-tempest-plugin-linuxbridge
+        - neutron-tempest-plugin-api-ovs-wsgi
+        - neutron-tempest-plugin-api-ovn-wsgi
     experimental:
       jobs: *neutron-periodic-jobs
 

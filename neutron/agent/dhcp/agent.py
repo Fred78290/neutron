@@ -14,7 +14,6 @@
 #    under the License.
 
 import collections
-import copy
 import functools
 import os
 import threading
@@ -51,8 +50,6 @@ _SYNC_STATE_LOCK = lockutils.ReaderWriterLock()
 
 DEFAULT_PRIORITY = 255
 
-DHCP_PROCESS_GREENLET_MAX = 32
-DHCP_PROCESS_GREENLET_MIN = 8
 DELETED_PORT_MAX_AGE = 86400
 
 DHCP_READY_PORTS_SYNC_MAX = 64
@@ -136,8 +133,7 @@ class DhcpAgent(manager.Manager):
         self._process_monitor = external_process.ProcessMonitor(
             config=self.conf,
             resource_type='dhcp')
-        self._pool_size = DHCP_PROCESS_GREENLET_MIN
-        self._pool = eventlet.GreenPool(size=self._pool_size)
+        self._pool = eventlet.GreenPool(1)
         self._queue = queue.ResourceProcessingQueue()
         self._network_bulk_allocations = {}
         # Each dhcp-agent restart should trigger a restart of all
@@ -221,22 +217,10 @@ class DhcpAgent(manager.Manager):
                 sid_subnets[subnet.get('segment_id')].append(subnet)
         if sid_subnets:
             ret = []
-
-            # TODO(sahid): This whole block bellow should be removed in future,
-            # when we know that all environements have migrated to at least
-            # zed.  This is expected to help for environements that already
-            # have deployed RPN. First, disable the dhcp agent for the
-            # network. Then the process will recreate it considering a dhcp
-            # agent per segmentation id.
-            if action in ['enable', 'disable']:
-                self._call_driver(
-                    'disable', network, segment=None, block=True)
-
             for seg_id, subnets in sid_subnets.items():
-                net_seg = copy.deepcopy(network)
-                net_seg.subnets = subnets
+                network.subnets = subnets
                 ret.append(self._call_driver(
-                    action, net_seg, segment=sid_segment.get(seg_id),
+                    action, network, segment=sid_segment.get(seg_id),
                     **action_kwargs))
             return all(ret)
         else:
@@ -352,9 +336,9 @@ class DhcpAgent(manager.Manager):
 
     def _dhcp_ready_ports_loop(self):
         """Notifies the server of any ports that had reservations setup."""
-        while True:
+        @_wait_if_syncing
+        def dhcp_ready_ports_loop():
             # this is just watching sets so we can do it really frequently
-            eventlet.sleep(0.1)
             prio_ports_to_send = set()
             ports_to_send = set()
             for port_count in range(min(len(self.dhcp_prio_ready_ports) +
@@ -370,7 +354,7 @@ class DhcpAgent(manager.Manager):
                                                         ports_to_send)
                     LOG.info("DHCP configuration for ports %s is completed",
                              prio_ports_to_send | ports_to_send)
-                    continue
+                    return
                 except oslo_messaging.MessagingTimeout:
                     LOG.error("Timeout notifying server of ports ready. "
                               "Retrying...")
@@ -380,6 +364,10 @@ class DhcpAgent(manager.Manager):
                                   "iteration.")
                 self.dhcp_prio_ready_ports |= prio_ports_to_send
                 self.dhcp_ready_ports |= ports_to_send
+
+        while True:
+            eventlet.sleep(0.2)
+            dhcp_ready_ports_loop()
 
     def start_ready_ports_loop(self):
         """Spawn a thread to push changed ports to server."""
@@ -458,8 +446,6 @@ class DhcpAgent(manager.Manager):
             # created before enabling dhcp can be updated.
             self.dhcp_ready_ports |= {p.id for p in network.ports}
 
-        self._resize_process_pool()
-
     def disable_dhcp_helper(self, network_id):
         """Disable DHCP for a network known to the agent."""
         network = self.cache.get_network_by_id(network_id)
@@ -474,8 +460,6 @@ class DhcpAgent(manager.Manager):
             self.disable_isolated_metadata_proxy(network)
             if self.call_driver('disable', network):
                 self.cache.remove(network)
-
-        self._resize_process_pool()
 
     def refresh_dhcp_helper(self, network_id):
         """Refresh or disable DHCP for a network depending on the current state
@@ -590,18 +574,6 @@ class DhcpAgent(manager.Manager):
             return
         self.refresh_dhcp_helper(network.id)
 
-    @lockutils.synchronized('resize_greenpool')
-    def _resize_process_pool(self):
-        num_nets = len(self.cache.get_network_ids())
-        pool_size = max([DHCP_PROCESS_GREENLET_MIN,
-                         min([DHCP_PROCESS_GREENLET_MAX, num_nets])])
-        if pool_size == self._pool_size:
-            return
-        LOG.info("Resizing dhcp processing queue green pool size to: %d",
-                 pool_size)
-        self._pool.resize(pool_size)
-        self._pool_size = pool_size
-
     def _process_loop(self):
         LOG.debug("Starting _process_loop")
 
@@ -612,6 +584,7 @@ class DhcpAgent(manager.Manager):
         for tmp, update in self._queue.each_update_to_next_resource():
             method = getattr(self, update.action)
             method(update.resource)
+            LOG.debug('Pending events to be processed: %s', self._queue.qsize)
 
     def port_update_end(self, context, payload):
         """Handle the port.update.end notification event."""
