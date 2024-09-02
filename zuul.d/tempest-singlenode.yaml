@@ -679,8 +679,18 @@
       devstack_localrc:
         OVN_BUILD_FROM_SOURCE: True
         OVN_BRANCH: main
-        # NOTE(ykarel): OVN main branch following OVS stable branch
-        OVS_BRANCH: branch-3.4
+        OVS_BRANCH: main
+
+- job:
+    name: neutron-ovn-tempest-plugin-ovs-master
+    branches: ^master$
+    description: Job testing Neutron tempest plugin with ovn driver and OVN master branch
+    parent: neutron-tempest-plugin-ovn
+    vars:
+      devstack_localrc:
+        OVN_BUILD_FROM_SOURCE: True
+        OVN_BRANCH: main
+        OVS_BRANCH: main
 
 - job:
     name: neutron-ovn-tempest-ovs-release-with-oslo-master
@@ -828,8 +838,7 @@
       devstack_localrc:
         OVN_BUILD_FROM_SOURCE: True
         OVN_BRANCH: "main"
-        # NOTE(ykarel): OVN main branch following OVS stable branch
-        OVS_BRANCH: branch-3.4
+        OVS_BRANCH: main
 
 - job:
     name: neutron-ovn-tempest-with-sqlalchemy-master

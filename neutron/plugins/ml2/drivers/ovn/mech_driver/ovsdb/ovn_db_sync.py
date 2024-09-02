@@ -594,12 +594,12 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
                     if gw_info.ip_version == constants.IP_VERSION_6:
                         continue
                     if gw_info.router_ip and utils.is_snat_enabled(router):
-                        networks = self._ovn_client.\
-                            _get_v4_network_of_all_router_ports(
-                                ctx, router['id'])
-                        for network in networks:
+                        cidrs = self._ovn_client.\
+                            _get_snat_cidrs_for_external_router(ctx,
+                                                                router['id'])
+                        for cidr in cidrs:
                             db_extends[router['id']]['snats'].append({
-                                'logical_ip': network,
+                                'logical_ip': cidr,
                                 'external_ip': gw_info.router_ip,
                                 'type': 'snat'})
 
@@ -787,7 +787,8 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
                         LOG.warning("Add static routes %s to OVN NB DB",
                                     sroute['add'])
                         for route in sroute['add']:
-                            columns = {}
+                            columns = {'external_ids': {
+                                       ovn_const.OVN_LRSR_EXT_ID_KEY: 'true'}}
                             if 'external_ids' in route:
                                 columns['external_ids'] = route['external_ids']
                             txn.add(self.ovn_api.add_static_route(

@@ -56,6 +56,7 @@ OVN_LIVENESS_CHECK_EXT_ID_KEY = 'neutron:liveness_check_at'
 METADATA_LIVENESS_CHECK_EXT_ID_KEY = 'neutron:metadata_liveness_check_at'
 OVN_PORT_BINDING_PROFILE = portbindings.PROFILE
 OVN_HOST_ID_EXT_ID_KEY = 'neutron:host_id'
+OVN_LRSR_EXT_ID_KEY = 'neutron:is_static_route'
 
 MIGRATING_ATTR = 'migrating_to'
 OVN_ROUTER_PORT_OPTION_KEYS = ['router-port', 'nat-addresses',
@@ -463,3 +464,6 @@ OVN_SUPPORTED_VNIC_TYPES = [portbindings.VNIC_NORMAL,
                             portbindings.VNIC_BAREMETAL,
                             portbindings.VNIC_VIRTIO_FORWARDER,
                             ]
+
+# OVN default SNAT CIDR
+OVN_DEFAULT_SNAT_CIDR = '0.0.0.0/0'
