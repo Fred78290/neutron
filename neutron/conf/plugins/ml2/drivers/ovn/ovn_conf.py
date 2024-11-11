@@ -175,12 +175,16 @@ ovn_opts = [
                        "option to be unset globally.\n"
                        "See the ovn-nb(5) man page for available options.")),
     cfg.BoolOpt('ovn_emit_need_to_frag',
-                default=False,
+                default=True,
+                deprecated_for_removal=True,
+                deprecated_since='2025.1',
+                deprecated_reason=("The option is useful only on very old "
+                                   "Linux kernels (version < 5.2)."),
                 help=_('Configure OVN to emit "need to frag" packets in '
                        'case of MTU mismatches.\n'
-                       'Before enabling this option make sure that '
-                       'it is supported by the host kernel (version >= 5.2) '
-                       'or by checking the output of the following command:\n'
+                       'You may have to disable this option if you are '
+                       'running an old host kernel (version < 5.2). You may '
+                       'check the output of the following command:\n'
                        'ovs-appctl -t ovs-vswitchd dpif/show-dp-features '
                        'br-int | grep "Check pkt length action".')),
     cfg.BoolOpt('disable_ovn_dhcp_for_baremetal_ports',
@@ -194,15 +198,6 @@ ovn_opts = [
                        'provisioning over IPv6 this option should be set '
                        'to "True" and neutron-dhcp-agent should be used '
                        'instead. Defaults to "False".')),
-    cfg.BoolOpt('allow_stateless_action_supported',
-                default=True,
-                deprecated_for_removal=True,
-                deprecated_since="2023.1",
-                help=_('If OVN older than 21.06 is used together with '
-                       'Neutron, this option should be set to ``False`` in '
-                       'order to disable the ``stateful-security-group`` API '
-                       'extension as ``allow-stateless`` keyword is only '
-                       'supported by OVN >= 21.06.')),
     cfg.BoolOpt('localnet_learn_fdb',
                 default=False,
                 help=_('If enabled it will allow localnet ports to learn MAC '

@@ -41,7 +41,7 @@ class SecurityGroupPortBindingDbObjectTestCase(
 class BasePortBindingDbObjectTestCase(obj_test_base._BaseObjectTestCase,
                                       testlib_api.SqlTestCase):
     def setUp(self):
-        super(BasePortBindingDbObjectTestCase, self).setUp()
+        super().setUp()
         self.update_obj_fields(
             {'port_id': lambda: self._create_test_port_id()})
 
@@ -116,7 +116,7 @@ class PortBindingVifDetailsTestCase(testscenarios.WithScenarios,
     ]
 
     def setUp(self):
-        super(PortBindingVifDetailsTestCase, self).setUp()
+        super().setUp()
         self._create_test_network()
         getter = lambda: self._create_port(network_id=self._network['id']).id
         self.update_obj_fields({'port_id': getter})
@@ -201,7 +201,7 @@ class IPAllocationDbObjectTestCase(obj_test_base.BaseDbObjectTestCase,
     _test_class = ports.IPAllocation
 
     def setUp(self):
-        super(IPAllocationDbObjectTestCase, self).setUp()
+        super().setUp()
         network_id = self._create_test_network_id()
         port_id = self._create_test_port_id(network_id=network_id)
         self.update_obj_fields(
@@ -220,7 +220,7 @@ class PortDNSDbObjectTestCase(obj_test_base.BaseDbObjectTestCase,
     _test_class = ports.PortDNS
 
     def setUp(self):
-        super(PortDNSDbObjectTestCase, self).setUp()
+        super().setUp()
         self.update_obj_fields(
             {'port_id': lambda: self._create_test_port_id()})
 
@@ -231,7 +231,7 @@ class PortBindingLevelIfaceObjTestCase(
     _test_class = ports.PortBindingLevel
 
     def setUp(self):
-        super(PortBindingLevelIfaceObjTestCase, self).setUp()
+        super().setUp()
         self.pager_map[self._test_class.obj_name()] = (
             obj_base.Pager(sorts=[('port_id', True), ('level', True)]))
 
@@ -242,7 +242,7 @@ class PortBindingLevelDbObjectTestCase(
     _test_class = ports.PortBindingLevel
 
     def setUp(self):
-        super(PortBindingLevelDbObjectTestCase, self).setUp()
+        super().setUp()
         self.update_obj_fields(
             {'port_id': lambda: self._create_test_port_id(),
              'segment_id': lambda: self._create_test_segment_id()})
@@ -253,7 +253,7 @@ class PortIfaceObjTestCase(obj_test_base.BaseObjectIfaceTestCase):
     _test_class = ports.Port
 
     def setUp(self):
-        super(PortIfaceObjTestCase, self).setUp()
+        super().setUp()
         self.pager_map[ports.PortBindingLevel.obj_name()] = (
             obj_base.Pager(sorts=[('port_id', True), ('level', True)]))
 
@@ -264,7 +264,7 @@ class PortDbObjectTestCase(obj_test_base.BaseDbObjectTestCase,
     _test_class = ports.Port
 
     def setUp(self):
-        super(PortDbObjectTestCase, self).setUp()
+        super().setUp()
         network_id = self._create_test_network_id()
         segment_id = self._create_test_segment_id(network_id)
         subnet_id = self._create_test_subnet_id(network_id)
@@ -534,6 +534,12 @@ class PortDbObjectTestCase(obj_test_base.BaseDbObjectTestCase,
         port_v1_7 = port_new.obj_to_primitive(target_version='1.7')
         self.assertNotIn('hints',
                          port_v1_7['versioned_object.data'])
+
+    def test_v1_10_to_v1_9_drops_trusted(self):
+        port_new = self._create_test_port(trusted=True)
+        port_v1_9 = port_new.obj_to_primitive(target_version='1.9')
+        self.assertNotIn('trusted',
+                         port_v1_9['versioned_object.data'])
 
     def test_get_ports_ids_by_security_groups_except_router(self):
         sg_id = self._create_test_security_group_id()

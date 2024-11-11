@@ -43,7 +43,7 @@ from neutron.quota import resource_registry
 LOG = logging.getLogger(__name__)
 
 
-class Controller(object):
+class Controller:
     LIST = 'list'
     SHOW = 'show'
     CREATE = 'create'
@@ -129,12 +129,12 @@ class Controller(object):
             self._parent_id_name = None
             parent_part = ''
         self._plugin_handlers = {
-            self.LIST: 'get%s_%s' % (parent_part, self._collection),
-            self.SHOW: 'get%s_%s' % (parent_part, self._resource)
+            self.LIST: 'get{}_{}'.format(parent_part, self._collection),
+            self.SHOW: 'get{}_{}'.format(parent_part, self._resource)
         }
         for action in [self.CREATE, self.UPDATE, self.DELETE]:
-            self._plugin_handlers[action] = '%s%s_%s' % (action, parent_part,
-                                                         self._resource)
+            self._plugin_handlers[action] = '{}{}_{}'.format(
+                action, parent_part, self._resource)
 
     def _get_primary_key(self, default_primary_key='id'):
         for key, value in self._attr_info.items():
@@ -176,8 +176,8 @@ class Controller(object):
             if attr_data and attr_data['is_visible']:
                 if policy.check(
                         context,
-                        '%s:%s' % (self._plugin_handlers[self.SHOW],
-                                   attr_name),
+                        '{}:{}'.format(self._plugin_handlers[self.SHOW],
+                                       attr_name),
                         data,
                         might_not_exist=True,
                         pluralized=self._collection):
@@ -784,7 +784,7 @@ class Controller(object):
     def _validate_network_tenant_ownership(self, request, resource_item):
         # TODO(salvatore-orlando): consider whether this check can be folded
         # in the policy engine
-        if (request.context.is_admin or request.context.is_advsvc or
+        if (request.context.is_admin or request.context.is_service_role or
                 self._resource not in ('port', 'subnet')):
             return
         network = self._plugin.get_network(
@@ -809,7 +809,7 @@ class Controller(object):
 
         # This will pass most create/update/delete cases
         if not is_get and (request.context.is_admin or
-                           request.context.is_advsvc or
+                           request.context.is_service_role or
                            self.parent['member_name'] not in
                            service_const.EXT_PARENT_RESOURCE_MAPPING or
                            resource_item.get(self._parent_id_name)):
@@ -820,17 +820,18 @@ class Controller(object):
         # _parent_id_name. We need to re-add the ex_parent prefix to policy.
         if is_get:
             if (not request.context.is_admin or
-                    not request.context.is_advsvc and
+                    not request.context.is_service_role and
                     self.parent['member_name'] in
                     service_const.EXT_PARENT_RESOURCE_MAPPING):
                 resource_item.setdefault(
-                    "%s_%s" % (constants.EXT_PARENT_PREFIX,
-                               self._parent_id_name),
+                    "{}_{}".format(constants.EXT_PARENT_PREFIX,
+                                   self._parent_id_name),
                     parent_id)
         # If this func is called by create/update/delete, we just add.
         else:
             resource_item.setdefault(
-                "%s_%s" % (constants.EXT_PARENT_PREFIX, self._parent_id_name),
+                "{}_{}".format(constants.EXT_PARENT_PREFIX,
+                               self._parent_id_name),
                 parent_id)
 
     def _belongs_to_default_sg(self, request, resource_item):

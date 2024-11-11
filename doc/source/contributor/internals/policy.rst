@@ -130,10 +130,10 @@ before returning it to the API client.
 The neutron.policy API
 ----------------------
 
-The ``neutron.policy`` module exposes a simple API whose main goal if to allow the
-REST API controllers to implement the authorization workflow discussed in this
-document. It is a bad practice to call the policy engine from within the plugin
-layer, as this would make request authorization dependent on configured
+The ``neutron.policy`` module exposes a simple API whose main goal if to allow
+the REST API controllers to implement the authorization workflow discussed inu
+this document. It is a bad practice to call the policy engine from within the
+plugin layer, as this would make request authorization dependent on configured
 plugins, and therefore make API behaviour dependent on the plugin itself, which
 defies Neutron tenet of being backend agnostic.
 
@@ -159,12 +159,6 @@ The neutron.policy API exposes the following routines:
 * ``enforce``
   Operates like the check routine but raises if the check in oslo_policy
   fails.
-* ``check_is_admin``
-  Enforce the predefined context_is_admin rule; used to determine the is_admin
-  property for a neutron context.
-* ``check_is_advsvc``
-  Enforce the predefined context_is_advsvc rule; used to determine the
-  is_advsvc property for a neutron context.
 
 Neutron specific policy rules
 -----------------------------
@@ -360,7 +354,7 @@ projects. Each neutron related project should register the following two entry
 points ``oslo.policy.policies`` and ``neutron.policies`` in ``setup.cfg`` like
 below:
 
-.. code-block:: none
+.. code-block:: ini
 
    oslo.policy.policies =
        neutron = neutron.conf.policies:list_rules
@@ -381,7 +375,7 @@ projects, so the second entry point is required.
 The recommended entry point name is a repository name: For example,
 'neutron-fwaas' for FWaaS and 'networking-sfc' for SFC:
 
-.. code-block:: none
+.. code-block:: ini
 
    oslo.policy.policies =
        neutron-fwaas = neutron_fwaas.policies:list_rules

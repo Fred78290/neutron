@@ -48,7 +48,7 @@ class OVSAgentTestBase(test_ovs_lib.OVSBridgeTestBase,
                        l2_base.OVSOFControllerHelper):
 
     def setUp(self):
-        super(OVSAgentTestBase, self).setUp()
+        super().setUp()
         self.br = self.useFixture(net_helpers.OVSBridgeFixture()).bridge
         self.start_of_controller(cfg.CONF)
         self.br_int = self.br_int_cls(self.br.br_name)
@@ -70,7 +70,7 @@ class OVSAgentTestBase(test_ovs_lib.OVSBridgeTestBase,
                 trace[l] = r
         for k in required_keys:
             if k not in trace:
-                self.fail("%s not found in trace %s" % (k, trace_lines))
+                self.fail("{} not found in trace {}".format(k, trace_lines))
 
         return trace
 
@@ -80,7 +80,7 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         # NOTE(kevinbenton): it would be way cooler to use scapy for
         # these but scapy requires the python process to be running as
         # root to bind to the ports.
-        super(ARPSpoofTestCase, self).setUp()
+        super().setUp()
         self.skip_without_arp_support()
         self.src_addr = '192.168.0.1'
         self.dst_addr = '192.168.0.2'
@@ -97,10 +97,10 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         self.addOnException(self.collect_flows_and_ports)
 
     def collect_flows_and_ports(self, exc_info):
-        nicevif = lambda x: ['%s=%s' % (k, getattr(x, k))
+        nicevif = lambda x: ['{}={}'.format(k, getattr(x, k))
                              for k in ['ofport', 'port_name', 'switch',
                                        'vif_id', 'vif_mac']]
-        nicedev = lambda x: ['%s=%s' % (k, getattr(x, k))
+        nicedev = lambda x: ['{}={}'.format(k, getattr(x, k))
                              for k in ['name', 'namespace']] + x.addr.list()
         details = {'flows': self.br.dump_all_flows(),
                    'vifs': map(nicevif, self.br.get_vif_ports()),
@@ -127,7 +127,7 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         self.src_p.addr.add('%s/24' % self.src_addr)
         self.dst_p.addr.add('%s/24' % self.dst_addr)
         net_helpers.assert_ping(self.src_namespace, self.dst_addr,
-                                retry_count=2)
+                                retry_count=2, device=self.src_addr)
 
     def test_mac_spoof_blocks_wrong_mac(self):
         self._setup_arp_spoof_for_port(self.src_p.name, [self.src_addr])
@@ -135,11 +135,12 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         self.src_p.addr.add('%s/24' % self.src_addr)
         self.dst_p.addr.add('%s/24' % self.dst_addr)
         net_helpers.assert_ping(self.src_namespace, self.dst_addr,
-                                retry_count=2)
+                                retry_count=2, device=self.src_addr)
         # changing the allowed mac should stop the port from working
         self._setup_arp_spoof_for_port(self.src_p.name, [self.src_addr],
                                        mac='00:11:22:33:44:55')
-        net_helpers.assert_no_ping(self.src_namespace, self.dst_addr)
+        net_helpers.assert_no_ping(self.src_namespace, self.dst_addr,
+                                   device=self.src_addr)
 
     def test_arp_spoof_doesnt_block_ipv6(self):
         self.src_addr = '2000::1'
@@ -152,7 +153,7 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         self.src_p.addr.wait_until_address_ready(self.src_addr)
         self.dst_p.addr.wait_until_address_ready(self.dst_addr)
         net_helpers.assert_ping(self.src_namespace, self.dst_addr,
-                                retry_count=2)
+                                retry_count=2, device=self.src_addr)
 
     def test_arp_spoof_blocks_response(self):
         # this will prevent the destination from responding to the ARP
@@ -160,7 +161,8 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         self._setup_arp_spoof_for_port(self.dst_p.name, ['192.168.0.3'])
         self.src_p.addr.add('%s/24' % self.src_addr)
         self.dst_p.addr.add('%s/24' % self.dst_addr)
-        net_helpers.assert_no_ping(self.src_namespace, self.dst_addr, count=2)
+        net_helpers.assert_no_ping(self.src_namespace, self.dst_addr, count=2,
+                                   device=self.src_addr)
 
     def test_arp_spoof_blocks_icmpv6_neigh_advt(self):
         self.src_addr = '2000::1'
@@ -175,7 +177,8 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         # make sure the IPv6 addresses are ready before pinging
         self.src_p.addr.wait_until_address_ready(self.src_addr)
         self.dst_p.addr.wait_until_address_ready(self.dst_addr)
-        net_helpers.assert_no_ping(self.src_namespace, self.dst_addr, count=2)
+        net_helpers.assert_no_ping(self.src_namespace, self.dst_addr, count=2,
+                                   device=self.src_addr)
 
     def test_arp_spoof_blocks_request(self):
         # this will prevent the source from sending an ARP
@@ -199,7 +202,7 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         self.src_p.addr.add('%s/24' % self.src_addr)
         self.dst_p.addr.add('%s/24' % self.dst_addr)
         net_helpers.assert_ping(self.src_namespace, self.dst_addr,
-                                retry_count=2)
+                                retry_count=2, device=self.src_addr)
 
     def test_arp_spoof_icmpv6_neigh_advt_allowed_address_pairs(self):
         self.src_addr = '2000::1'
@@ -212,14 +215,15 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         self.src_p.addr.wait_until_address_ready(self.src_addr)
         self.dst_p.addr.wait_until_address_ready(self.dst_addr)
         net_helpers.assert_ping(self.src_namespace, self.dst_addr,
-                                retry_count=2)
+                                retry_count=2, device=self.src_addr)
 
     def test_arp_spoof_allowed_address_pairs_0cidr(self):
         self._setup_arp_spoof_for_port(self.dst_p.name, ['9.9.9.9/0',
                                                          '1.2.3.4'])
         self.src_p.addr.add('%s/24' % self.src_addr)
         self.dst_p.addr.add('%s/24' % self.dst_addr)
-        net_helpers.assert_ping(self.src_namespace, self.dst_addr)
+        net_helpers.assert_ping(self.src_namespace, self.dst_addr,
+                                device=self.src_addr)
 
     def test_arp_spoof_disable_port_security(self):
         # block first and then disable port security to make sure old rules
@@ -230,7 +234,7 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         self.src_p.addr.add('%s/24' % self.src_addr)
         self.dst_p.addr.add('%s/24' % self.dst_addr)
         net_helpers.assert_ping(self.src_namespace, self.dst_addr,
-                                retry_count=2)
+                                retry_count=2, device=self.src_addr)
 
     def test_arp_spoof_disable_network_port(self):
         # block first and then disable port security to make sure old rules
@@ -242,7 +246,7 @@ class ARPSpoofTestCase(OVSAgentTestBase):
         self.src_p.addr.add('%s/24' % self.src_addr)
         self.dst_p.addr.add('%s/24' % self.dst_addr)
         net_helpers.assert_ping(self.src_namespace, self.dst_addr,
-                                retry_count=2)
+                                retry_count=2, device=self.src_addr)
 
     def _setup_arp_spoof_for_port(self, port, addrs, psec=True,
                                   device_owner='nobody', mac=None):
@@ -317,7 +321,7 @@ class OVSFlowTestCase(OVSAgentTestBase):
         cfg.CONF.set_override('enable_distributed_routing',
                               dvr_enabled,
                               group='AGENT')
-        super(OVSFlowTestCase, self).setUp()
+        super().setUp()
         self.phys_br = self.useFixture(net_helpers.OVSBridgeFixture()).bridge
         self.br_phys = self.br_phys_cls(self.phys_br.br_name)
         self.br_phys.set_secure_mode()

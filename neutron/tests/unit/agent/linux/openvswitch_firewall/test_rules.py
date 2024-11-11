@@ -31,7 +31,7 @@ class TestIsValidPrefix(base.BaseTestCase):
         self.assertTrue(is_valid)
 
     def test_invalid_prefix_ipv4(self):
-        is_valid = rules.is_valid_prefix('0.0.0.0/0')
+        is_valid = rules.is_valid_prefix(constants.IPv4_ANY)
         self.assertFalse(is_valid)
 
     def test_valid_prefix_ipv6(self):
@@ -49,7 +49,7 @@ class TestIsValidPrefix(base.BaseTestCase):
 
 class TestCreateFlowsFromRuleAndPort(base.BaseTestCase):
     def setUp(self):
-        super(TestCreateFlowsFromRuleAndPort, self).setUp()
+        super().setUp()
         ovs_port = mock.Mock(vif_mac='00:00:00:00:00:00')
         ovs_port.ofport = 1
         port_dict = {'device': 'port_id'}
@@ -104,7 +104,7 @@ class TestCreateFlowsFromRuleAndPort(base.BaseTestCase):
             'ethertype': constants.IPv4,
             'direction': constants.INGRESS_DIRECTION,
             'source_ip_prefix': '192.168.0.0/24',
-            'dest_ip_prefix': '0.0.0.0/0',
+            'dest_ip_prefix': constants.IPv4_ANY,
         }
         expected_template = {
             'priority': 74,
@@ -164,7 +164,7 @@ class TestCreateFlowsFromRuleAndPort(base.BaseTestCase):
 
 class TestCreateProtocolFlows(base.BaseTestCase):
     def setUp(self):
-        super(TestCreateProtocolFlows, self).setUp()
+        super().setUp()
         ovs_port = mock.Mock(vif_mac='00:00:00:00:00:00')
         ovs_port.ofport = 1
         port_dict = {'device': 'port_id'}
@@ -391,7 +391,7 @@ class TestCreateConjFlows(base.BaseTestCase):
                          flows[0]['ct_state'])
         self.assertEqual(ovsfw_consts.OF_STATE_NEW_NOT_ESTABLISHED,
                          flows[1]['ct_state'])
-        self.assertEqual("output:{:d}".format(port.ofport),
+        self.assertEqual(f"output:{port.ofport:d}",
                          flows[0]['actions'])
         self.assertEqual("ct(commit,zone=NXM_NX_REG{:d}[0..15]),{:s},"
                          "resubmit(,{:d})".format(
@@ -408,7 +408,7 @@ class TestCreateConjFlows(base.BaseTestCase):
 
 class TestMergeRules(base.BaseTestCase):
     def setUp(self):
-        super(TestMergeRules, self).setUp()
+        super().setUp()
         self.rule_tmpl = [('direction', 'ingress'), ('ethertype', 'IPv4'),
                           ('protocol', 6)]
 

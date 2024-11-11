@@ -15,7 +15,11 @@
 
 from unittest import mock
 
+from neutron_lib.api.definitions import l3
+from neutron_lib import constants as const
 from neutron_lib import context as ncontext
+from neutron_lib.services.logapi import constants as log_const
+from neutron_lib.services.trunk import constants as trunk_const
 from oslo_config import cfg
 
 from neutron.common.ovn import constants
@@ -27,9 +31,6 @@ from neutron.tests import base
 from neutron.tests.unit import fake_resources as fakes
 from neutron.tests.unit.services.logapi.drivers.ovn \
     import test_driver as test_log_driver
-from neutron_lib.api.definitions import l3
-from neutron_lib import constants as const
-from neutron_lib.services.logapi import constants as log_const
 
 from tenacity import wait_none
 
@@ -86,7 +87,7 @@ class TestOVNClientBase(base.BaseTestCase):
     def setUp(self):
         ml2_conf.register_ml2_plugin_opts()
         ovn_conf.register_opts()
-        super(TestOVNClientBase, self).setUp()
+        super().setUp()
         self.nb_idl = mock.MagicMock()
         self.sb_idl = mock.MagicMock()
         self.ovn_client = ovn_client.OVNClient(self.nb_idl, self.sb_idl)
@@ -95,7 +96,7 @@ class TestOVNClientBase(base.BaseTestCase):
 class TestOVNClient(TestOVNClientBase):
 
     def setUp(self):
-        super(TestOVNClient, self).setUp()
+        super().setUp()
         self.get_plugin = mock.patch(
             'neutron_lib.plugins.directory.get_plugin').start()
 
@@ -131,7 +132,7 @@ class TestOVNClient(TestOVNClientBase):
             self.ovn_client._add_router_ext_gw(mock.Mock(), router, txn))
         self.nb_idl.add_static_route.assert_called_once_with(
             'neutron-' + router['id'],
-            ip_prefix='0.0.0.0/0',
+            ip_prefix=const.IPv4_ANY,
             nexthop='10.42.0.1',
             maintain_bfd=False,
             external_ids={
@@ -182,7 +183,7 @@ class TestOVNClient(TestOVNClientBase):
             self.ovn_client._add_router_ext_gw(mock.Mock(), router, txn))
         self.nb_idl.add_static_route.assert_has_calls([
             mock.call('neutron-' + router['id'],
-                      ip_prefix='0.0.0.0/0',
+                      ip_prefix=const.IPv4_ANY,
                       nexthop=subnet1['gateway_ip'],
                       maintain_bfd=False,
                       external_ids={
@@ -191,7 +192,7 @@ class TestOVNClient(TestOVNClientBase):
                          constants.OVN_LRSR_EXT_ID_KEY: 'true'},
                       ),
             mock.call('neutron-' + router['id'],
-                      ip_prefix='0.0.0.0/0',
+                      ip_prefix=const.IPv4_ANY,
                       nexthop=subnet2['gateway_ip'],
                       maintain_bfd=False,
                       external_ids={
@@ -234,6 +235,12 @@ class TestOVNClient(TestOVNClientBase):
             [self.get_plugin().get_port()],
             self.ovn_client._add_router_ext_gw(mock.Mock(), router, txn))
         self.nb_idl.add_static_route.assert_not_called()
+
+    def test_checkout_ip_list(self):
+        addresses = ["192.168.2.2/32", "2001:db8::/32"]
+        add_map = self.ovn_client._checkout_ip_list(addresses)
+        self.assertEqual(["192.168.2.2/32"], add_map[const.IP_VERSION_4])
+        self.assertEqual(["2001:db8::/32"], add_map[const.IP_VERSION_6])
 
     def test_update_lsp_host_info_up(self):
         context = mock.MagicMock()
@@ -291,12 +298,22 @@ class TestOVNClient(TestOVNClientBase):
         context = mock.MagicMock()
         port_id = 'fake-port-id'
         db_port = mock.Mock(id=port_id)
+        self.nb_idl.lsp_get_up.return_value.execute.return_value = False
 
         self.ovn_client.update_lsp_host_info(context, db_port, up=False)
 
         self.nb_idl.db_remove.assert_called_once_with(
             'Logical_Switch_Port', port_id, 'external_ids',
             constants.OVN_HOST_ID_EXT_ID_KEY, if_exists=True)
+
+    def test_update_lsp_host_info_trunk_subport(self):
+        context = mock.MagicMock()
+        db_port = mock.Mock(id='fake-port-id',
+                            device_owner=trunk_const.TRUNK_SUBPORT_OWNER)
+
+        self.ovn_client.update_lsp_host_info(context, db_port)
+        self.nb_idl.db_remove.assert_not_called()
+        self.nb_idl.db_set.assert_not_called()
 
     @mock.patch.object(ml2_db, 'get_port')
     def test__wait_for_port_bindings_host(self, mock_get_port):
@@ -358,7 +375,7 @@ class TestOVNClient(TestOVNClientBase):
                 return_value=per_subnet_cidrs):
             cidrs = self.ovn_client._get_snat_cidrs_for_external_router(
                 ctx, 'fake-id')
-        self.assertEqual([constants.OVN_DEFAULT_SNAT_CIDR], cidrs)
+        self.assertEqual([const.IPv4_ANY], cidrs)
 
 
 class TestOVNClientFairMeter(TestOVNClientBase,

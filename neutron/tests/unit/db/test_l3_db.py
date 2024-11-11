@@ -33,7 +33,6 @@ from neutron_lib.plugins import directory
 from neutron_lib.plugins import utils as plugin_utils
 from oslo_utils import uuidutils
 import testtools
-import webob.exc
 
 from neutron.db import extraroute_db
 from neutron.db import l3_db
@@ -55,7 +54,7 @@ class TestL3_NAT_dbonly_mixin(
         test_db_base_plugin_v2.NeutronDbPluginV2TestCase):
 
     def setUp(self, *args, **kwargs):
-        super(TestL3_NAT_dbonly_mixin, self).setUp(*args, **kwargs)
+        super().setUp(*args, **kwargs)
         # "extraroute_db.ExtraRoute_dbonly_mixin" inherits from
         # "l3_db.L3_NAT_dbonly_mixin()", the class under test. This is used
         # instead to test the validation of router routes and GW change because
@@ -750,7 +749,7 @@ class TestL3_NAT_dbonly_mixin(
 
 class L3_NAT_db_mixin(base.BaseTestCase):
     def setUp(self):
-        super(L3_NAT_db_mixin, self).setUp()
+        super().setUp()
         self.db = l3_db.L3_NAT_db_mixin()
 
     def _test_create_router(self, external_gateway_info=None):
@@ -812,7 +811,7 @@ class L3TestCase(test_db_base_plugin_v2.NeutronDbPluginV2TestCase):
         '"routerport" register: %(port_ids)s')
 
     def setUp(self, *args, **kwargs):
-        super(L3TestCase, self).setUp(plugin='ml2')
+        super().setUp(plugin='ml2')
         self.core_plugin = directory.get_plugin()
         self.ctx = context.get_admin_context()
         self.mixin = FakeL3Plugin()
@@ -927,7 +926,7 @@ class L3TestCase(test_db_base_plugin_v2.NeutronDbPluginV2TestCase):
         interface_info = {'subnet_id': self.subnets[1]['subnet']['id']}
         self.mixin.remove_router_interface(self.ctx, self.router['id'],
                                            interface_info)
-        mock_log.warning.not_called_once()
+        mock_log.warning.assert_not_called()
         self._check_routerports((True, False))
 
     @mock.patch.object(l3_db.L3_NAT_dbonly_mixin,
@@ -1037,7 +1036,7 @@ class L3TestCase(test_db_base_plugin_v2.NeutronDbPluginV2TestCase):
                 mock.call(resources.ROUTER, events.PRECOMMIT_UPDATE,
                           self.mixin, payload=mock.ANY),
                 mock.call(resources.ROUTER, events.AFTER_UPDATE,
-                         self.mixin, payload=mock.ANY),
+                          self.mixin, payload=mock.ANY),
             ]
             mock_publish.assert_has_calls(expected_calls)
 
@@ -1049,8 +1048,7 @@ class L3TestCase(test_db_base_plugin_v2.NeutronDbPluginV2TestCase):
                 self.fmt, name, True,
                 arg_list=(extnet_apidef.EXTERNAL,),
                 as_admin=True, **kwargs)
-            if res.status_int >= webob.exc.HTTPClientError.code:
-                raise webob.exc.HTTPClientError(code=res.status_int)
+            self._check_http_response(res)
             return self.deserialize(self.fmt, res)
 
     def test_update_router_gw_notify(self):

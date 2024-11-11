@@ -36,13 +36,14 @@ from oslo_utils import fileutils
 import psutil
 
 from neutron.api import wsgi
+from neutron.common import utils
 from neutron.conf.agent import common as config
 from neutron.privileged.agent.linux import utils as priv_utils
 
 LOG = logging.getLogger(__name__)
 
 
-class RootwrapDaemonHelper(object):
+class RootwrapDaemonHelper:
     __client = None
     __lock = threading.Lock()
 
@@ -236,18 +237,18 @@ def _get_conf_base(cfg_root, uuid, ensure_conf_dir):
 def get_conf_file_name(cfg_root, uuid, cfg_file, ensure_conf_dir=False):
     """Returns the file name for a given kind of config file."""
     conf_base = _get_conf_base(cfg_root, uuid, ensure_conf_dir)
-    return "%s.%s" % (conf_base, cfg_file)
+    return "{}.{}".format(conf_base, cfg_file)
 
 
 def get_value_from_file(filename, converter=None):
 
     try:
-        with open(filename, 'r') as f:
+        with open(filename) as f:
             try:
                 return converter(f.read()) if converter else f.read()
             except ValueError:
                 LOG.error('Unable to convert value in %s', filename)
-    except IOError as error:
+    except OSError as error:
         LOG.debug('Unable to access %(filename)s; Error: %(error)s',
                   {'filename': filename, 'error': error})
 
@@ -317,9 +318,9 @@ def get_cmdline_from_pid(pid):
     # NOTE(jh): Even after the above check, the process may terminate
     # before the open below happens
     try:
-        with open('/proc/%s/cmdline' % pid, 'r') as f:
+        with open('/proc/%s/cmdline' % pid) as f:
             cmdline = f.readline().split('\0')[:-1]
-    except IOError:
+    except OSError:
         return []
 
     # NOTE(slaweq): sometimes it may happen that values in
@@ -399,6 +400,19 @@ def delete_if_exists(path, run_as_root=False):
         fileutils.delete_if_exists(path)
 
 
+def read_if_exists(path: str, run_as_root=False) -> str:
+    """Return the content of a text file as a string
+
+    The output includes the empty lines too. If the file does not exist,
+    returns an empty string.
+    It could be called with elevated permissions (root).
+    """
+    if run_as_root:
+        return priv_utils.read_file(path)
+    else:
+        return utils.read_file(path)
+
+
 class UnixDomainHTTPConnection(httplib.HTTPConnection):
     """Connection class for HTTP over UNIX domain socket."""
     def __init__(self, host, port=None, strict=None, timeout=None,
@@ -452,8 +466,8 @@ class UnixDomainWSGIServer(wsgi.Server):
         self._socket = None
         self._launcher = None
         self._server = None
-        super(UnixDomainWSGIServer, self).__init__(name, disable_ssl=True,
-                                                   num_threads=num_threads)
+        super().__init__(name, disable_ssl=True,
+                         num_threads=num_threads)
 
     def start(self, application, file_socket, workers, backlog, mode=None):
         self._socket = eventlet.listen(file_socket,

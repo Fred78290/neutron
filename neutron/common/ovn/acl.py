@@ -63,8 +63,8 @@ def acl_direction(r, port=None, port_group=None):
         portdir = 'inport'
 
     if port:
-        return '%s == "%s"' % (portdir, port['id'])
-    return '%s == @%s' % (portdir, port_group)
+        return '{} == "{}"'.format(portdir, port['id'])
+    return '{} == @{}'.format(portdir, port_group)
 
 
 def acl_ethertype(r):
@@ -86,7 +86,7 @@ def acl_remote_ip_prefix(r, ip_version):
     if not r['normalized_cidr']:
         return ''
     src_or_dst = 'src' if r['direction'] == const.INGRESS_DIRECTION else 'dst'
-    return ' && %s.%s == %s' % (
+    return ' && {}.{} == {}'.format(
         ip_version, src_or_dst, r['normalized_cidr'])
 
 
@@ -148,7 +148,7 @@ def add_acls_for_drop_port_group(pg_name):
                "name": [],
                "severity": [],
                "direction": direction,
-               "match": '%s == @%s && ip' % (p, pg_name)}
+               "match": '{} == @{} && ip'.format(p, pg_name)}
         acl_list.append(acl)
     return acl_list
 
@@ -166,7 +166,7 @@ def drop_all_ip_traffic_for_port(port):
                "name": [],
                "severity": [],
                "direction": direction,
-               "match": '%s == "%s" && ip' % (p, port['id']),
+               "match": '{} == "{}" && ip'.format(p, port['id']),
                "external_ids": {'neutron:lport': port['id']}}
         acl_list.append(acl)
     return acl_list
@@ -230,6 +230,16 @@ def acl_remote_group_id(r, ip_version):
     src_or_dst = 'src' if r['direction'] == const.INGRESS_DIRECTION else 'dst'
     addrset_name = utils.ovn_pg_addrset_name(r['remote_group_id'],
                                              ip_version)
+    return ' && {}.{} == ${}'.format(ip_version, src_or_dst, addrset_name)
+
+
+def acl_remote_address_group_id(r, ip_version):
+    if not r.get('remote_address_group_id'):
+        return ''
+
+    src_or_dst = 'src' if r['direction'] == const.INGRESS_DIRECTION else 'dst'
+    addrset_name = utils.ovn_ag_addrset_name(r['remote_address_group_id'],
+                                             ip_version)
     return ' && %s.%s == $%s' % (ip_version, src_or_dst, addrset_name)
 
 
@@ -248,6 +258,9 @@ def _add_sg_rule_acl_for_port_group(port_group, stateful, r):
     # Update the match if remote group id was specified.
     match += acl_remote_group_id(r, ip_version)
 
+    # Update the match if remote address group id was specified.
+    match += acl_remote_address_group_id(r, ip_version)
+
     # Update the match for the protocol (tcp, udp, icmp) and port/type
     # range if specified.
     match += acl_protocol_and_ports(r, icmp)
@@ -261,15 +274,12 @@ def _acl_columns_name_severity_supported(nb_idl):
     return ('name' in columns) and ('severity' in columns)
 
 
-def is_sg_stateful(sg, stateless_supported):
-    if stateless_supported:
-        return sg.get("stateful", True)
-    return True
+def is_sg_stateful(sg):
+    return sg.get("stateful", True)
 
 
-def add_acls_for_sg_port_group(ovn, security_group, txn,
-                               stateless_supported=True):
-    stateful = is_sg_stateful(security_group, stateless_supported)
+def add_acls_for_sg_port_group(ovn, security_group, txn):
+    stateful = is_sg_stateful(security_group)
     for r in security_group['security_group_rules']:
         acl = _add_sg_rule_acl_for_port_group(
             utils.ovn_port_group_name(security_group['id']), stateful, r)
@@ -281,8 +291,7 @@ def update_acls_for_security_group(plugin,
                                    ovn,
                                    security_group_id,
                                    security_group_rule,
-                                   is_add_acl=True,
-                                   stateless_supported=True):
+                                   is_add_acl=True):
 
     # Skip ACLs if security groups aren't enabled
     if not is_sg_enabled():
@@ -292,7 +301,7 @@ def update_acls_for_security_group(plugin,
     keep_name_severity = _acl_columns_name_severity_supported(ovn)
 
     sg = plugin.get_security_group(admin_context, security_group_id)
-    stateful = is_sg_stateful(sg, stateless_supported)
+    stateful = is_sg_stateful(sg)
 
     acl = _add_sg_rule_acl_for_port_group(
         utils.ovn_port_group_name(security_group_id),

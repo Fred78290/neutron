@@ -15,6 +15,7 @@
 #    under the License.
 
 from neutron_lib.api.definitions import constants as api_const
+from neutron_lib.api.definitions import external_net as external_net_apidef
 from neutron_lib.api.definitions import l3 as l3_apidef
 from neutron_lib.api.definitions import network as net_def
 from neutron_lib.callbacks import events
@@ -53,7 +54,8 @@ def _ensure_external_network_default_value_callback(
     def _do_ensure_external_network_default_value_callback(
             context, request, orig, network):
         is_default = request.get(api_const.IS_DEFAULT)
-        if is_default is None:
+        is_external = request.get(external_net_apidef.EXTERNAL)
+        if is_default is None or not is_external:
             return
         if is_default:
             # ensure only one default external network at any given time
@@ -80,13 +82,13 @@ def _ensure_external_network_default_value_callback(
 
 
 @resource_extend.has_resource_extenders
-class AutoAllocatedTopologyMixin(object):
+class AutoAllocatedTopologyMixin:
 
     def __new__(cls, *args, **kwargs):
         # NOTE(kevinbenton): we subscribe on object construction because
         # the tests blow away the callback manager for each run
-        new = super(AutoAllocatedTopologyMixin, cls).__new__(cls, *args,
-                                                             **kwargs)
+        new = super().__new__(cls, *args,
+                              **kwargs)
         registry.subscribe(_ensure_external_network_default_value_callback,
                            resources.NETWORK, events.PRECOMMIT_UPDATE)
         registry.subscribe(_ensure_external_network_default_value_callback,

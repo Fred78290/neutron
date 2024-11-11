@@ -94,7 +94,7 @@ def make_result_with_fields(f):
     return inner
 
 
-class DbBasePluginCommon(object):
+class DbBasePluginCommon:
     """Stores getters and helper methods for db_base_plugin_v2
 
     All private getters and simple helpers like _make_*_dict were moved from
@@ -147,9 +147,9 @@ class DbBasePluginCommon(object):
 
     def _make_subnet_dict(self, subnet, fields=None, context=None):
         if isinstance(subnet, subnet_obj.Subnet):
-            standard_attr_id = subnet.db_obj.standard_attr.id
+            standard_attr_id = subnet.db_obj.standard_attr_id
         else:
-            standard_attr_id = subnet.standard_attr.id
+            standard_attr_id = subnet.standard_attr_id
 
         res = {'id': subnet['id'],
                'name': subnet['name'],
@@ -333,7 +333,7 @@ class DbBasePluginCommon(object):
                'status': network['status'],
                'subnets': [subnet['id']
                            for subnet in network['subnets']],
-               'standard_attr_id': network.standard_attr.id}
+               'standard_attr_id': network.standard_attr_id}
         res['shared'] = self._is_network_shared(context, network.rbac_entries)
         # Call auxiliary extend functions, if any
         if process_extensions:

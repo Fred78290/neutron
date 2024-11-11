@@ -26,7 +26,6 @@ import uuid
 from neutron_lib.api.definitions import portbindings
 from neutron_lib.api.definitions import provider_net
 from neutron_lib.api.definitions import segment as segment_def
-from neutron_lib.api.definitions import stateful_security_group
 from neutron_lib.callbacks import events
 from neutron_lib.callbacks import registry
 from neutron_lib.callbacks import resources
@@ -230,10 +229,7 @@ class OVNMechanismDriver(api.MechanismDriver):
         return portbindings.CONNECTIVITY_L2
 
     def supported_extensions(self, extensions):
-        supported_extensions = set(ovn_extensions.ML2_SUPPORTED_API_EXTENSIONS)
-        if not cfg.CONF.ovn.allow_stateless_action_supported:
-            supported_extensions.discard(stateful_security_group.ALIAS)
-        return set(supported_extensions) & extensions
+        return set(ovn_extensions.ML2_SUPPORTED_API_EXTENSIONS) & extensions
 
     @staticmethod
     def provider_network_attribute_updates_supported():
@@ -257,7 +253,7 @@ class OVNMechanismDriver(api.MechanismDriver):
                            resources.SEGMENT,
                            events.AFTER_DELETE)
 
-        # Handle security group/rule notifications
+        # Handle security group/rule or address group notifications
         if self.sg_enabled:
             registry.subscribe(self._create_security_group_precommit,
                                resources.SECURITY_GROUP,
@@ -283,6 +279,15 @@ class OVNMechanismDriver(api.MechanismDriver):
             registry.subscribe(self._process_sg_rule_notification,
                                resources.SECURITY_GROUP_RULE,
                                events.BEFORE_DELETE)
+            registry.subscribe(self._process_ag_notification,
+                               resources.ADDRESS_GROUP,
+                               events.AFTER_CREATE)
+            registry.subscribe(self._process_ag_notification,
+                               resources.ADDRESS_GROUP,
+                               events.AFTER_UPDATE)
+            registry.subscribe(self._process_ag_notification,
+                               resources.ADDRESS_GROUP,
+                               events.AFTER_DELETE)
 
     def _remove_node_from_hash_ring(self, *args, **kwargs):
         # The node_uuid attribute will be empty for worker types
@@ -404,6 +409,11 @@ class OVNMechanismDriver(api.MechanismDriver):
             context, security_group['id'],
             ovn_const.TYPE_SECURITY_GROUPS,
             std_attr_id=security_group['standard_attr_id'])
+        for sg_rule in security_group['security_group_rules']:
+            ovn_revision_numbers_db.create_initial_revision(
+                context, sg_rule['id'],
+                ovn_const.TYPE_SECURITY_GROUP_RULES,
+                std_attr_id=sg_rule['standard_attr_id'])
 
     def _create_security_group(self, resource, event, trigger, payload):
         context = payload.context
@@ -430,13 +440,8 @@ class OVNMechanismDriver(api.MechanismDriver):
         security_group = payload.latest_state
 
         old_state, new_state = payload.states
-        is_allow_stateless_supported = (
-            self._ovn_client.is_allow_stateless_supported()
-        )
-        old_stateful = ovn_acl.is_sg_stateful(
-            old_state, is_allow_stateless_supported)
-        new_stateful = ovn_acl.is_sg_stateful(
-            new_state, is_allow_stateless_supported)
+        old_stateful = ovn_acl.is_sg_stateful(old_state)
+        new_stateful = ovn_acl.is_sg_stateful(new_state)
         if old_stateful != new_stateful:
             for rule in self._plugin.get_security_group_rules(
                     context, {'security_group_id': [security_group['id']]}):
@@ -496,6 +501,25 @@ class OVNMechanismDriver(api.MechanismDriver):
             if _rules_equal(sg_rule, rule):
                 return True
         return False
+
+    def _process_ag_notification(
+            self, resource, event, trigger, payload):
+        context = payload.context
+        address_group = payload.latest_state
+        address_group_id = payload.resource_id
+        if event == events.AFTER_CREATE:
+            ovn_revision_numbers_db.create_initial_revision(
+                context, address_group_id, ovn_const.TYPE_ADDRESS_GROUPS,
+                std_attr_id=address_group['standard_attr_id'])
+            self._ovn_client.create_address_group(
+                context, address_group)
+        elif event == events.AFTER_UPDATE:
+            self._ovn_client.update_address_group(
+                context, address_group)
+        elif event == events.AFTER_DELETE:
+            self._ovn_client.delete_address_group(
+                context,
+                address_group_id)
 
     def _is_network_type_supported(self, network_type):
         return (network_type in [const.TYPE_LOCAL,
@@ -875,11 +899,11 @@ class OVNMechanismDriver(api.MechanismDriver):
         # the port status from DOWN to UP in order to generate 'fake'
         # vif-interface-plugged event. This workaround is needed to
         # perform live-migration with live_migration_wait_for_vif_plug=True.
-        if ((port['status'] == const.PORT_STATUS_DOWN and
-             ovn_const.MIGRATING_ATTR in port[portbindings.PROFILE].keys() and
-             port[portbindings.VIF_TYPE] in (
+        if (port['status'] == const.PORT_STATUS_DOWN and
+            ovn_const.MIGRATING_ATTR in port[portbindings.PROFILE].keys() and
+            port[portbindings.VIF_TYPE] in (
                  portbindings.VIF_TYPE_OVS,
-                 portbindings.VIF_TYPE_VHOST_USER))):
+                 portbindings.VIF_TYPE_VHOST_USER)):
             LOG.info("Setting port %s status from DOWN to UP in order "
                      "to emit vif-interface-plugged event.",
                      port['id'])

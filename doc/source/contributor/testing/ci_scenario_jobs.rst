@@ -28,9 +28,9 @@ Neutron Jobs Running in Zuul CI
 Tempest jobs running in Neutron CI
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In upstream Neutron CI there are various tempest and neutron-tempest-plugin jobs
-running.
-Each of those jobs runs on slightly different configuration of Neutron services.
+In upstream Neutron CI there are various tempest and neutron-tempest-plugin
+jobs running. Each of those jobs runs on slightly different configuration of
+Neutron services.
 Below is a summary of those jobs.
 ::
 
@@ -91,7 +91,8 @@ Grenade jobs running in Neutron CI
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 In upstream Neutron CI there are various Grenade jobs running.
-Each of those jobs runs on slightly different configuration of Neutron services.
+Each of those jobs runs on slightly different configuration of Neutron
+services.
 Below is summary of those jobs.
 ::
 
@@ -109,8 +110,8 @@ Tempest jobs running in Neutron experimental CI
 In upstream Neutron CI there is also queue called ``experimental``. It includes
 jobs which are not needed to be run on every patch and/or jobs which isn't
 stable enough to be run always.
-Those jobs can be run by making comment ``check experimental`` in the comment to
-the patch in Gerrit.
+Those jobs can be run by making comment ``check experimental`` in the comment
+to the patch in Gerrit.
 
 Currently we have in that queue jobs like listed below.
 ::
@@ -127,23 +128,35 @@ Currently we have in that queue jobs like listed below.
     |neutron-ovn-tempest-full-multinode-ovs-master |Various tempest api and scenario  |   2   | Ubuntu Jammy     | ovn         | ovn             | ---      | ---   | ---    | ---        | No          |
     |                                              |tests                             |       |                  |             |                 |          |       |        |            |             |
     +----------------------------------------------+----------------------------------+-------+------------------+-------------+-----------------+----------+-------+--------+------------+-------------+
+    |neutron-ovn-tempest-full-multinode-ovs-lts    |Various tempest api and scenario  |   2   | Ubuntu Jammy     | ovn         | ovn             | ---      | ---   | ---    | ---        | No          |
+    |                                              |tests using latest OVS and OVN    |       |                  |             |                 |          |       |        |            |             |
+    |                                              |LTS branches                          |       |                  |             |                 |          |       |        |            |             |
+    +----------------------------------------------+----------------------------------+-------+------------------+-------------+-----------------+----------+-------+--------+------------+-------------+
     |neutron-ovn-tempest-ovs-master                |Various tempest api and scenario  |   1   | Ubuntu Jammy     | ovn         | ovn             | ---      | ---   | ---    | ---        | No          |
-    |                                              |tests                     |       |                  |             |                 |          |       |        |            |             |
+    |                                              |tests                             |       |                  |             |                 |          |       |        |            |             |
+    +----------------------------------------------+----------------------------------+-------+------------------+-------------+-----------------+----------+-------+--------+------------+-------------+
+    |neutron-ovn-tempest-ovs-lts                   |Various tempest api and scenario  |   1   | Ubuntu Jammy     | ovn         | ovn             | ---      | ---   | ---    | ---        | No          |
+    |                                              |tests using latest OVS and OVN    |       |                  |             |                 |          |       |        |            |             |
+    |                                              |LTS branches                          |       |                  |             |                 |          |       |        |            |             |
     +----------------------------------------------+----------------------------------+-------+------------------+-------------+-----------------+----------+-------+--------+------------+-------------+
     |neutron-ovn-tempest-plugin-ovs-master         |Various tempest api, scenario     |   1   | Ubuntu Jammy     | ovn         | ovn             | ---      | ---   | ---    | ---        | No          |
     |                                              |and neutron_tempest_plugin tests  |       |                  |             |                 |          |       |        |            |             |
     +----------------------------------------------+----------------------------------+-------+------------------+-------------+-----------------+----------+-------+--------+------------+-------------+
-    |neutron-ovn-tempest-with-neutron-lib-master   |tempest.api (without slow tests)  |   1   | Ubuntu Jammy     | openvswitch | openvswitch     | legacy   | False | False  | True       | No          |
-    |                                              |tempest.scenario                  |       |                  |             |                 |          |       |        |            |             |
-    |                                              |(only tests related to            |       |                  |             |                 |          |       |        |            |             |
-    |                                              |Neutron and Nova)                 |       |                  |             |                 |          |       |        |            |             |
+    |neutron-ovn-tempest-plugin-ovs-lts            |Various tempest api, scenario     |   1   | Ubuntu Jammy     | ovn         | ovn             | ---      | ---   | ---    | ---        | No          |
+    |                                              |and neutron_tempest_plugin        |       |                  |             |                 |          |       |        |            |             |
+    |                                              |test using latest OVS and OVN LTS |       |                  |             |                 |          |       |        |            |             |
+    |                                              |branches                          |       |                  |             |                 |          |       |        |            |             |
+    +----------------------------------------------+----------------------------------+-------+------------------+-------------+-----------------+----------+-------+--------+------------+-------------+
+    |neutron-ovn-tempest-with-neutron-lib-master   |Various tempest api and scenario  |   1   | Ubuntu Jammy     | ovn         | ovn             | ---      | ---   | ---    | ---        | No          |
+    |                                              |tests using main neutron-lib      |       |                  |             |                 |          |       |        |            |             |
+    |                                              |branch                            |       |                  |             |                 |          |       |        |            |             |
     +----------------------------------------------+----------------------------------+-------+------------------+-------------+-----------------+----------+-------+--------+------------+-------------+
     |neutron-ovn-tempest-ipv6-only-ovs-master      |tempest.api (without slow tests)  |   1   | Ubuntu Jammy     | ovn         | ovn             | ---      | False | False  | True       | Yes         |
     |                                              |(only tests related to            |       |                  |             |                 |          |       |        |            |             |
     |                                              |Neutron and Nova)                 |       |                  |             |                 |          |       |        |            |             |
     +----------------------------------------------+----------------------------------+-------+------------------+-------------+-----------------+----------+-------+--------+------------+-------------+
 
-And we also have Grenade jobs in the experimental queue.
+And we also have Grenade jobs in the periodic queue.
 ::
 
     +------------------------------------+-------+------------------+-------------+-------------+----------+--------+------------+------------+-------------+

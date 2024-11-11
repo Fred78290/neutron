@@ -57,7 +57,7 @@ _notifier_store = threading.local()
 
 
 @registry.has_registry_receivers
-class Notifier(object):
+class Notifier:
 
     _instance = None
 
@@ -281,6 +281,9 @@ class Notifier(object):
         try:
             response = novaclient.server_external_events.create(
                 batched_events)
+        except ks_exceptions.EndpointNotFound:
+            LOG.exception("Nova endpoint not found, invalidating the session")
+            self.session.invalidate()
         except nova_exceptions.NotFound:
             LOG.debug("Nova returned NotFound for event: %s",
                       batched_events)
@@ -304,7 +307,7 @@ class Notifier(object):
                     response_error = True
                     continue
                 if hasattr(response, 'request_ids'):
-                    msg = "Nova event matching {}".format(response.request_ids)
+                    msg = f"Nova event matching {response.request_ids}"
                 else:
                     msg = "Nova event"
                 if code != 200:

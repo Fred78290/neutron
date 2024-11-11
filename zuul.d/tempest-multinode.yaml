@@ -44,6 +44,7 @@
       - openstack/tempest
     pre-run: playbooks/dvr-multinode-scenario-pre-run.yaml
     irrelevant-files: &openvswitch-irrelevant-files
+      - ^\.pre-commit-config\.yaml$
       - ^\.pylintrc$
       - ^test-requirements.txt$
       - ^releasenotes/.*$
@@ -219,6 +220,7 @@
         Q_ML2_TENANT_NETWORK_TYPE: vxlan
         Q_ML2_PLUGIN_MECHANISM_DRIVERS: openvswitch
         Q_AGENT: openvswitch
+        NEUTRON_DEPLOY_MOD_WSGI: true
       devstack_plugins:
         neutron: https://opendev.org/openstack/neutron.git
       devstack_services:
@@ -308,6 +310,7 @@
         Q_ML2_TENANT_NETWORK_TYPE: vxlan
         Q_ML2_PLUGIN_MECHANISM_DRIVERS: openvswitch
         Q_AGENT: openvswitch
+        NEUTRON_DEPLOY_MOD_WSGI: true
       devstack_services:
         br-ex-tcpdump: true
         br-int-flows: true
@@ -377,6 +380,7 @@
       - openstack/neutron-tempest-plugin
       - openstack/tempest
     irrelevant-files: &ovn-irrelevant-files
+      - ^\.pre-commit-config\.yaml$
       - ^\.pylintrc$
       - ^test-requirements.txt$
       - ^releasenotes/.*$
@@ -451,6 +455,7 @@
         BUILD_TIMEOUT: 784
         ENABLE_TLS: True
         OVN_IGMP_SNOOPING_ENABLE: True
+        NEUTRON_DEPLOY_MOD_WSGI: true
       devstack_plugins:
         neutron: https://opendev.org/openstack/neutron
         neutron-tempest-plugin: https://opendev.org/openstack/neutron-tempest-plugin
@@ -536,8 +541,7 @@
       tempest_test_regex: ""
 
 - job:
-    # TODO(slaweq): propose job with ovs-release and move -master one to
-    # experimental queue
+    # TODO(slaweq): move -master one to experimental queue
     name: neutron-ovn-tempest-full-multinode-ovs-master
     branches: ^master$
     parent: neutron-ovn-multinode-base
@@ -588,3 +592,19 @@
           OVN_BUILD_FROM_SOURCE: True
           OVN_BRANCH: main
           OVS_BRANCH: main
+
+- job:
+    name: neutron-ovn-tempest-full-multinode-ovs-lts
+    branches: ^master$
+    parent: neutron-ovn-tempest-full-multinode-ovs-master
+    vars:
+      devstack_localrc:
+        OVN_BUILD_FROM_SOURCE: True
+        OVN_BRANCH: branch-24.03
+        OVS_BRANCH: branch-3.3
+    group-vars:
+      subnode:
+        devstack_localrc:
+          OVN_BUILD_FROM_SOURCE: True
+          OVN_BRANCH: branch-24.03
+          OVS_BRANCH: branch-3.3

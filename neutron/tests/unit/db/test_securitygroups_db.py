@@ -24,6 +24,7 @@ from neutron_lib.objects import exceptions as obj_exc
 import sqlalchemy
 import testtools
 
+from neutron.common import _constants as const
 from neutron.db import securitygroups_db
 from neutron.extensions import security_groups_default_rules as \
     ext_sg_default_rules
@@ -72,7 +73,7 @@ class SecurityGroupDbMixinImpl(securitygroups_db.SecurityGroupDbMixin):
 class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
 
     def setUp(self):
-        super(SecurityGroupDbMixinTestCase, self).setUp()
+        super().setUp()
         self.setup_coreplugin(core_plugin=DB_PLUGIN_KLASS)
         self.ctx = context.get_admin_context()
         self.mixin = SecurityGroupDbMixinImpl()
@@ -172,11 +173,11 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
                                         'security_group_id': 'fake',
                                         'ethertype': 'IPv4',
                                         'direction': 'ingress',
-                                        'remote_ip_prefix': '0.0.0.0/0'}
+                                        'remote_ip_prefix': constants.IPv4_ANY}
             }
             self.assertRaises(securitygroup.SecurityGroupRuleExists,
-                self.mixin._check_for_duplicate_rules,
-                context, 'fake', [rule_dict])
+                              self.mixin._check_for_duplicate_rules,
+                              context, 'fake', [rule_dict])
 
     def test_check_for_duplicate_diff_rules_remote_ip_prefix_ipv6(self):
         fake_secgroup = copy.deepcopy(FAKE_SECGROUP)
@@ -196,8 +197,8 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
                                         'remote_ip_prefix': '::/0'}
             }
             self.assertRaises(securitygroup.SecurityGroupRuleExists,
-                self.mixin._check_for_duplicate_rules,
-                context, 'fake', [rule_dict])
+                              self.mixin._check_for_duplicate_rules,
+                              context, 'fake', [rule_dict])
 
     def test_delete_security_group_rule_in_use(self):
         with mock.patch.object(registry, "publish") as mock_publish:
@@ -258,7 +259,7 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
                            events.PRECOMMIT_UPDATE)
         sg_dict = self.mixin.create_security_group(self.ctx, FAKE_SECGROUP)
         with mock.patch.object(sqlalchemy.orm.session.SessionTransaction,
-                              'rollback') as mock_rollback:
+                               'rollback') as mock_rollback:
             self.assertRaises(securitygroup.SecurityGroupConflict,
                               self.mixin.update_security_group,
                               self.ctx, sg_dict['id'], FAKE_SECGROUP)
@@ -269,7 +270,7 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
                            events.PRECOMMIT_DELETE)
         sg_dict = self.mixin.create_security_group(self.ctx, FAKE_SECGROUP)
         with mock.patch.object(sqlalchemy.orm.session.SessionTransaction,
-                              'rollback') as mock_rollback:
+                               'rollback') as mock_rollback:
             self.assertRaises(securitygroup.SecurityGroupInUse,
                               self.mixin.delete_security_group,
                               self.ctx, sg_dict['id'])
@@ -405,7 +406,7 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
             self.assertEqual(sg_dict, payload.latest_state)
             self.assertEqual(sg_dict['id'], payload.resource_id)
             self.assertEqual([mock.ANY, mock.ANY],
-                payload.metadata.get('security_group_rule_ids'))
+                             payload.metadata.get('security_group_rule_ids'))
 
             payload = mock_publish.mock_calls[2][2]['payload']
             self.assertEqual(mock.ANY, payload.context)
@@ -438,7 +439,7 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
                                'rollback') as mock_rollback,\
                 mock.patch.object(self.mixin, '_get_security_group'):
             sg_rule_dict = self.mixin.create_security_group_rule(self.ctx,
-                   fake_rule)
+                                                                 fake_rule)
             self.assertRaises(securitygroup.SecurityGroupRuleInUse,
                               self.mixin.delete_security_group_rule, self.ctx,
                               sg_rule_dict['id'])
@@ -475,11 +476,11 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
                                                      mock.ANY,
                                                      payload=mock.ANY)])
             mock_publish.assert_has_calls([mock.call('security_group_rule',
-                                                    'precommit_delete',
+                                                     'precommit_delete',
                                                      mock.ANY,
                                                      payload=mock.ANY)])
             mock_publish.assert_has_calls([mock.call('security_group_rule',
-                                                    'after_delete',
+                                                     'after_delete',
                                                      mock.ANY,
                                                      payload=mock.ANY)])
 
@@ -499,10 +500,13 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
 
     def test_get_ip_proto_name_and_num(self):
         protocols = [constants.PROTO_NAME_UDP, str(constants.PROTO_NUM_TCP),
+                     constants.PROTO_NAME_IP, None, const.PROTO_NAME_ANY,
                      'blah', '111']
         protocol_names_nums = (
             [[constants.PROTO_NAME_UDP, str(constants.PROTO_NUM_UDP)],
              [constants.PROTO_NAME_TCP, str(constants.PROTO_NUM_TCP)],
+             [constants.PROTO_NAME_IP, str(constants.PROTO_NUM_IP)],
+             None, None,
              ['blah', 'blah'], ['111', '111']])
 
         for i, protocol in enumerate(protocols):
@@ -518,10 +522,10 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
                          constants.PROTO_NAME_IPV6_ICMP_LEGACY):
             for pmin, pmax, exception in states:
                 self.assertRaises(exception,
-                    self.mixin._validate_port_range,
-                    {'port_range_min': pmin,
-                     'port_range_max': pmax,
-                     'protocol': protocol})
+                                  self.mixin._validate_port_range,
+                                  {'port_range_min': pmin,
+                                   'port_range_max': pmax,
+                                   'protocol': protocol})
 
     def test__validate_port_range_exception(self):
         self.assertRaises(securitygroup.SecurityGroupInvalidPortValue,
@@ -768,7 +772,7 @@ class SecurityGroupDbMixinTestCase(testlib_api.SqlTestCase):
                     'id': 'fake2',
                     'ethertype': 'IPv4',
                     'direction': 'ingress',
-                    'remote_ip_prefix': '0.0.0.0/0'}
+                    'remote_ip_prefix': constants.IPv4_ANY}
             }
             self.assertRaises(
                 ext_sg_default_rules.DefaultSecurityGroupRuleExists,

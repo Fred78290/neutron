@@ -13,8 +13,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import copy
-
 from neutron_lib import constants as const
 from oslo_log import log as logging
 from oslo_policy import policy as oslo_policy
@@ -118,8 +116,7 @@ class PolicyHook(hooks.PecanHook):
                                           parent_id=parent_id)
             if resource_obj:
                 original_resources.append(resource_obj)
-                obj = copy.copy(resource_obj)
-                obj.update(item)
+                obj = resource_obj | item
                 obj[const.ATTRIBUTES_TO_UPDATE] = list(item)
                 # Put back the item in the list so that policies could be
                 # enforced
@@ -240,7 +237,7 @@ class PolicyHook(hooks.PecanHook):
                         context,
                         # NOTE(kevinbenton): this used to reference a
                         # _plugin_handlers dict, why?
-                        'get_%s:%s' % (resource, attr_name),
+                        'get_{}:{}'.format(resource, attr_name),
                         data,
                         might_not_exist=True,
                         pluralized=collection):

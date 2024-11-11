@@ -16,7 +16,6 @@
 import copy
 import datetime
 
-from eventlet import greenthread
 from neutron_lib.agent import constants as agent_consts
 from neutron_lib.api import converters
 from neutron_lib.api.definitions import agent as agent_apidef
@@ -81,7 +80,7 @@ def get_availability_zones_by_agent_type(context, agent_type,
 
     agents = agent_obj.Agent.get_agents_by_availability_zones_and_agent_type(
         context, agent_type=agent_type, availability_zones=availability_zones)
-    return set(agent.availability_zone for agent in agents)
+    return {agent.availability_zone for agent in agents}
 
 
 class AgentAvailabilityZoneMixin(az_ext.AvailabilityZonePluginBase):
@@ -250,8 +249,8 @@ class AgentDbMixin(ext_agent.AgentPluginBase, AgentAvailabilityZoneMixin):
     def _make_agent_dict(self, agent, fields=None):
         attr = agent_apidef.RESOURCE_ATTRIBUTE_MAP.get(
             agent_apidef.COLLECTION_NAME)
-        res = dict((k, agent[k]) for k in attr
-                   if k not in ['alive', 'configurations'])
+        res = {k: agent[k] for k in attr
+               if k not in ['alive', 'configurations']}
         res['alive'] = not utils.is_agent_down(
             res['heartbeat_timestamp']
         )
@@ -373,7 +372,7 @@ class AgentDbMixin(ext_agent.AgentPluginBase, AgentAvailabilityZoneMixin):
         status = agent_consts.AGENT_ALIVE
         with db_api.CONTEXT_WRITER.using(context):
             res_keys = ['agent_type', 'binary', 'host', 'topic']
-            res = dict((k, agent_state[k]) for k in res_keys)
+            res = {k: agent_state[k] for k in res_keys}
             if 'availability_zone' in agent_state:
                 res['availability_zone'] = agent_state['availability_zone']
             configurations_dict = agent_state.get('configurations', {})
@@ -401,7 +400,6 @@ class AgentDbMixin(ext_agent.AgentPluginBase, AgentAvailabilityZoneMixin):
                 res['heartbeat_timestamp'] = current_time
                 if agent_state.get('start_flag'):
                     res['started_at'] = current_time
-                greenthread.sleep(0)
                 self._log_heartbeat(agent_state, agent, configurations_dict,
                                     agent_timestamp)
                 agent.update_fields(res)
@@ -410,19 +408,16 @@ class AgentDbMixin(ext_agent.AgentPluginBase, AgentAvailabilityZoneMixin):
             except agent_exc.AgentNotFoundByTypeHost:
                 agent_state_orig = None
                 agent_state_previous = None
-                greenthread.sleep(0)
                 res['created_at'] = current_time
                 res['started_at'] = current_time
                 res['heartbeat_timestamp'] = current_time
                 res['admin_state_up'] = cfg.CONF.enable_new_agents
                 agent = agent_obj.Agent(context=context, **res)
-                greenthread.sleep(0)
                 agent.create()
                 event_type = events.AFTER_CREATE
                 self._log_heartbeat(agent_state, agent, configurations_dict,
                                     agent_timestamp)
                 status = agent_consts.AGENT_NEW
-            greenthread.sleep(0)
 
         agent_state['agent_status'] = status
         agent_state['admin_state_up'] = agent.admin_state_up
@@ -462,7 +457,7 @@ class AgentDbMixin(ext_agent.AgentPluginBase, AgentAvailabilityZoneMixin):
             tracker.set_versions(consumer, resource_versions)
 
 
-class AgentExtRpcCallback(object):
+class AgentExtRpcCallback:
     """Processes the rpc report in plugin implementations.
 
     This class implements the server side of an rpc interface.  The client side
@@ -482,7 +477,7 @@ class AgentExtRpcCallback(object):
     START_TIME = timeutils.utcnow()
 
     def __init__(self, plugin=None):
-        super(AgentExtRpcCallback, self).__init__()
+        super().__init__()
         self.plugin = plugin
         # TODO(ajo): fix the resources circular dependency issue by dynamically
         #            registering object types in the RPC callbacks api

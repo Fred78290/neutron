@@ -34,6 +34,7 @@ from neutron_lib.plugins import directory
 from neutron_lib.plugins import utils as p_utils
 from neutron_lib.services.logapi import constants as log_const
 from neutron_lib.services.qos import constants as qos_consts
+from neutron_lib.services.trunk import constants as trunk_const
 from neutron_lib.utils import helpers
 from neutron_lib.utils import net as n_net
 from oslo_config import cfg
@@ -99,7 +100,7 @@ GW_INFO = collections.namedtuple('GatewayInfo', ['network_id', 'subnet_id',
                                                  'ip_version', 'ip_prefix'])
 
 
-class OVNClient(object):
+class OVNClient:
 
     def __init__(self, nb_idl, sb_idl):
         self._nb_idl = nb_idl
@@ -141,11 +142,6 @@ class OVNClient(object):
     def is_external_ports_supported(self):
         return self._nb_idl.is_col_present(
             'Logical_Switch_Port', 'ha_chassis_group')
-
-    # TODO(ihrachys) remove when min OVN version >= 21.06
-    def is_allow_stateless_supported(self):
-        return self._nb_idl.is_col_supports_value('ACL', 'action',
-                                                  'allow-stateless')
 
     def _get_allowed_addresses_from_port(self, port):
         if not port.get(psec.PORTSECURITY):
@@ -211,7 +207,7 @@ class OVNClient(object):
         subnet_opt = subnet_opts.get(opt)
         if not subnet_opt:
             return port_opt
-        return '{%s, %s}' % (subnet_opt[1:-1], port_opt[1:-1])
+        return '{{{}, {}}}'.format(subnet_opt[1:-1], port_opt[1:-1])
 
     def _get_port_dhcp_options(self, port, ip_version):
         """Return dhcp options for port.
@@ -299,7 +295,18 @@ class OVNClient(object):
                    Defaults to True.
         """
         cmd = []
+        if db_port.device_owner == trunk_const.TRUNK_SUBPORT_OWNER:
+            # NOTE(ralonsoh): OVN subports don't have host ID information.
+            return
+
+        port_up = self._nb_idl.lsp_get_up(db_port.id).execute(
+            check_error=True)
         if up:
+            if not port_up:
+                LOG.warning('Logical_Switch_Port %s host information not '
+                            'updated, the port state is down')
+                return
+
             if not db_port.port_bindings:
                 return
 
@@ -321,6 +328,11 @@ class OVNClient(object):
                 self._nb_idl.db_set(
                     'Logical_Switch_Port', db_port.id, ext_ids))
         else:
+            if port_up:
+                LOG.warning('Logical_Switch_Port %s host information not '
+                            'removed, the port state is up')
+                return
+
             cmd.append(
                 self._nb_idl.db_remove(
                     'Logical_Switch_Port', db_port.id, 'external_ids',
@@ -841,7 +853,8 @@ class OVNClient(object):
             # to allow at least one maintenance cycle  before we delete the
             # revision number so that the port doesn't stale and eventually
             # gets deleted by the maintenance task.
-            rev_row = db_rev.get_revision_row(context, port_id)
+            rev_row = db_rev.get_revision_row(
+                context, port_id, resource_type=ovn_const.TYPE_PORTS)
             time_ = (timeutils.utcnow() - datetime.timedelta(
                 seconds=ovn_const.DB_CONSISTENCY_CHECK_INTERVAL + 30))
             if rev_row and rev_row.created_at >= time_:
@@ -970,15 +983,14 @@ class OVNClient(object):
 
     def _handle_lb_fip_cmds(self, context, lb_lsp,
                             action=ovn_const.FIP_ACTION_ASSOCIATE):
-        commands = []
         if not ovn_conf.is_ovn_distributed_floating_ip():
-            return commands
+            return
 
         lb_lsp_fip_port = lb_lsp.external_ids.get(
             ovn_const.OVN_PORT_NAME_EXT_ID_KEY, '')
 
         if not lb_lsp_fip_port.startswith(ovn_const.LB_VIP_PORT_PREFIX):
-            return commands
+            return
 
         # This is a FIP on LB VIP.
         # Loop over members and delete FIP external_mac/logical_port enteries.
@@ -988,103 +1000,92 @@ class OVNClient(object):
             ('external_ids', '=', {
                 ovn_const.LB_EXT_IDS_VIP_PORT_ID_KEY: lb_lsp.name})
         ).execute(check_error=True)
-        for lb in lbs:
-            # GET all LS where given LB is linked.
-            ls_linked = [
-                item
-                for item in self._nb_idl.db_find_rows(
-                    'Logical_Switch').execute(check_error=True)
-                if lb in item.load_balancer]
+        all_lswitches = self._nb_idl.db_find_rows(
+            'Logical_Switch').execute(check_error=True)
+        attached_lbs = {
+            lb for item in all_lswitches for lb in item.load_balancer}
 
-            if not ls_linked:
-                return
+        for lb in lbs:
+            if lb not in attached_lbs:
+                # LB is not linked anywhere.
+                continue
 
             # Find out IP addresses and subnets of configured members.
-            members_to_verify = []
             for ext_id in lb.external_ids.keys():
-                if ext_id.startswith(ovn_const.LB_EXT_IDS_POOL_PREFIX):
-                    members = lb.external_ids[ext_id]
-                    if not members:
+                if not ext_id.startswith(ovn_const.LB_EXT_IDS_POOL_PREFIX):
+                    continue
+                members = lb.external_ids[ext_id]
+                if not members:
+                    continue
+                for member in members.split(','):
+                    # NOTE(mjozefcz): Remove this workaround in W release.
+                    # Last argument of member info is a subnet_id from from
+                    # which member comes from.
+                    # member_`id`_`ip`:`port`_`subnet_ip`
+                    member_info = member.split('_')
+                    if len(member_info) < 4:
                         continue
-                    for member in members.split(','):
-                        # NOTE(mjozefcz): Remove this workaround in W release.
-                        # Last argument of member info is a subnet_id from
-                        # from which member comes from.
-                        # member_`id`_`ip`:`port`_`subnet_ip`
-                        member_info = member.split('_')
-                        if len(member_info) >= 4:
-                            m = {}
-                            m['id'] = member_info[1]
-                            m['ip'] = member_info[2].split(':')[0]
-                            m['subnet_id'] = member_info[3]
-                            try:
-                                subnet = self._plugin.get_subnet(
-                                    context, m['subnet_id'])
-                                m['network_id'] = subnet['network_id']
-                                members_to_verify.append(m)
-                            except n_exc.SubnetNotFound:
-                                LOG.debug("Cannot find subnet details "
-                                          "for OVN LB member "
-                                          "%s.", m['id'])
-
-            # Find a member LSPs from all linked LS to this LB.
-            for member in members_to_verify:
-                ls = self._nb_idl.lookup(
-                    'Logical_Switch', utils.ovn_name(member['network_id']))
-                for lsp in ls.ports:
-                    if not lsp.addresses:
+                    m = {
+                        'id': member_info[1],
+                        'ip': member_info[2].split(':')[0],
+                        'subnet_id': member_info[3],
+                    }
+                    try:
+                        subnet = self._plugin.get_subnet(context,
+                                                         m['subnet_id'])
+                        m['network_id'] = subnet['network_id']
+                    except n_exc.SubnetNotFound:
+                        LOG.debug("Cannot find subnet details for "
+                                  "OVN LB member %s.", m['id'])
                         continue
-                    if member['ip'] in utils.remove_macs_from_lsp_addresses(
-                            lsp.addresses):
-                        member['lsp'] = lsp
-                        nats = self._nb_idl.db_find_rows(
-                            'NAT',
-                            ('external_ids', '=', {
-                                ovn_const.OVN_FIP_PORT_EXT_ID_KEY: lsp.name})
-                        ).execute(check_error=True)
+                    yield from self._verify_member(context, action, m)
 
-                        for nat in nats:
-                            if action == ovn_const.FIP_ACTION_ASSOCIATE:
-                                # NOTE(mjozefcz): We should delete logical_port
-                                # and external_mac entries from member NAT in
-                                # order to make traffic work.
-                                LOG.warning(
-                                    "Port %s is configured as a member "
-                                    "of one of OVN Load_Balancers and "
-                                    "Load_Balancer has FIP assigned. "
-                                    "In order to make traffic work member "
-                                    "FIP needs to be centralized, even if "
-                                    "this environment is configured as "
-                                    "DVR. Removing logical_port and "
-                                    "external_mac from NAT entry.",
-                                    lsp.name)
-                                commands.extend([
-                                    self._nb_idl.db_clear(
-                                        'NAT', nat.uuid, 'external_mac'),
-                                    self._nb_idl.db_clear(
-                                        'NAT', nat.uuid, 'logical_port')])
-                            else:
-                                # NOTE(mjozefcz): The FIP from LB VIP is
-                                # disassociated now. We can decentralize
-                                # member FIPs now.
-                                LOG.warning(
-                                    "Port %s is configured as a member "
-                                    "of one of OVN Load_Balancers and "
-                                    "Load_Balancer has FIP disassociated. "
-                                    "DVR for this port can be enabled back.",
-                                    lsp.name)
-                                commands.append(self._nb_idl.db_set(
-                                    'NAT', nat.uuid,
-                                    ('logical_port', lsp.name)))
-                                port = self._plugin.get_port(context, lsp.name)
-                                if port['status'] == const.PORT_STATUS_ACTIVE:
-                                    commands.append(
-                                        self._nb_idl.db_set(
-                                            'NAT', nat.uuid,
-                                            ('external_mac',
-                                             port['mac_address'])))
+    def _verify_member(self, context, action, member):
+        ls = self._nb_idl.lookup(
+            'Logical_Switch', utils.ovn_name(member['network_id']))
+        for lsp in ls.ports:
+            if not lsp.addresses:
+                continue
+            ips = utils.remove_macs_from_lsp_addresses(lsp.addresses)
+            if member['ip'] not in ips:
+                continue
+            member['lsp'] = lsp
+            nats = self._nb_idl.db_find_rows(
+                'NAT',
+                ('external_ids', '=', {
+                    ovn_const.OVN_FIP_PORT_EXT_ID_KEY: lsp.name})
+            ).execute(check_error=True)
 
-        return commands
+            for nat in nats:
+                if action == ovn_const.FIP_ACTION_ASSOCIATE:
+                    # NOTE(mjozefcz): We should delete logical_port and
+                    # external_mac entries from member NAT in order to
+                    # make traffic work.
+                    LOG.warning(
+                        "Port %s is configured as a member of one of OVN "
+                        "Load_Balancers and Load_Balancer has FIP assigned. "
+                        "In order to make traffic work member FIP needs to be "
+                        "centralized, even if this environment is configured "
+                        "as DVR. Removing logical_port and external_mac from "
+                        "NAT entry.", lsp.name)
+                    for field_to_clear in ('external_mac', 'logical_port'):
+                        yield self._nb_idl.db_clear(
+                            'NAT', nat.uuid, field_to_clear)
+                else:
+                    # NOTE(mjozefcz): The FIP from LB VIP is disassociated now.
+                    # We can decentralize member FIPs now.
+                    LOG.warning(
+                        "Port %s is configured as a member of one of OVN "
+                        "Load_Balancers and Load_Balancer has FIP "
+                        "disassociated. DVR for this port can be enabled "
+                        "back.", lsp.name)
+                    yield self._nb_idl.db_set(
+                        'NAT', nat.uuid, ('logical_port', lsp.name))
+                    port = self._plugin.get_port(context, lsp.name)
+                    if port['status'] == const.PORT_STATUS_ACTIVE:
+                        yield self._nb_idl.db_set(
+                            'NAT', nat.uuid,
+                            ('external_mac', port['mac_address']))
 
     def _delete_floatingip(self, fip, lrouter, txn=None):
         commands = [self._nb_idl.delete_nat_rule_in_lrouter(
@@ -1267,8 +1268,8 @@ class OVNClient(object):
             subnet_id = fixed_ip['subnet_id']
             subnet = self._plugin.get_subnet(context, subnet_id)
             cidr = netaddr.IPNetwork(subnet['cidr'])
-            networks.add("%s/%s" % (fixed_ip['ip_address'],
-                                    str(cidr.prefixlen)))
+            networks.add("{}/{}".format(fixed_ip['ip_address'],
+                                        str(cidr.prefixlen)))
 
             if subnet.get('ipv6_address_mode') and not ipv6_ra_configs and (
                     ipv6_ra_configs_supported):
@@ -1445,7 +1446,7 @@ class OVNClient(object):
 
     def _get_snat_cidrs_for_external_router(self, context, router_id):
         if is_nested_snat():
-            return [ovn_const.OVN_DEFAULT_SNAT_CIDR]
+            return [const.IPv4_ANY]
         # nat rule per attached subnet per external ip
         return self._get_v4_network_of_all_router_ports(context, router_id)
 
@@ -1684,12 +1685,12 @@ class OVNClient(object):
         network_type = ls.external_ids[ovn_const.OVN_NETTYPE_EXT_ID_KEY]
         network_mtu = int(
             ls.external_ids[ovn_const.OVN_NETWORK_MTU_EXT_ID_KEY])
-        # For VLAN type networks we need to set the
+        # For provider networks (VLAN, FLAT types) we need to set the
         # "reside-on-redirect-chassis" option so the routing for this
         # logical router port is centralized in the chassis hosting the
         # distributed gateway port.
         # https://github.com/openvswitch/ovs/commit/85706c34d53d4810f54bec1de662392a3c06a996
-        if network_type == const.TYPE_VLAN:
+        if network_type in [const.TYPE_VLAN, const.TYPE_FLAT]:
             reside_redir_ch = self._get_reside_redir_for_gateway_port(
                 port['device_id'])
             options[ovn_const.LRP_OPTIONS_RESIDE_REDIR_CH] = reside_redir_ch
@@ -2078,9 +2079,10 @@ class OVNClient(object):
                 ovn_conf.get_fdb_age_threshold())
         if utils.is_external_network(network):
             params['other_config'][
-                ovn_const.LS_OPTIONS_BROADCAST_ARPS_ROUTERS] = ('true'
-                if ovn_conf.is_broadcast_arps_to_all_routers_enabled() else
-                'false')
+                ovn_const.LS_OPTIONS_BROADCAST_ARPS_ROUTERS] = (
+                    'true'
+                    if ovn_conf.is_broadcast_arps_to_all_routers_enabled() else
+                    'false')
         return params
 
     def create_network(self, context, network):
@@ -2129,8 +2131,8 @@ class OVNClient(object):
                                                          **options))
         self._transaction(commands, txn=txn)
 
-    def _check_network_changes_in_ha_chassis_groups(self,
-            context, lswitch, lswitch_params, txn):
+    def _check_network_changes_in_ha_chassis_groups(
+            self, context, lswitch, lswitch_params, txn):
         """Check for changes in the HA Chassis Groups.
 
         Check for changes in the HA Chassis Groups upon a network update.
@@ -2347,11 +2349,11 @@ class OVNClient(object):
 
         routes = []
         if metadata_port_ip:
-            routes.append('%s,%s' % (
+            routes.append('{},{}'.format(
                 const.METADATA_V4_CIDR, metadata_port_ip))
 
         # Add subnet host_routes to 'classless_static_route' dhcp option
-        routes.extend(['%s,%s' % (route['destination'], route['nexthop'])
+        routes.extend(['{},{}'.format(route['destination'], route['nexthop'])
                        for route in subnet['host_routes']])
 
         if routes:
@@ -2539,10 +2541,12 @@ class OVNClient(object):
             # When a SG is created, it comes with some default rules,
             # so we'll apply them to the Port Group.
             ovn_acl.add_acls_for_sg_port_group(
-                self._nb_idl, security_group, txn,
-                self.is_allow_stateless_supported())
+                self._nb_idl, security_group, txn)
         db_rev.bump_revision(
             context, security_group, ovn_const.TYPE_SECURITY_GROUPS)
+        for sg_rule in security_group['security_group_rules']:
+            db_rev.bump_revision(
+                context, sg_rule, ovn_const.TYPE_SECURITY_GROUP_RULES)
 
     def _add_port_to_drop_port_group(self, port, txn):
         txn.add(self._nb_idl.pg_add_ports(ovn_const.OVN_DROP_PORT_GROUP_NAME,
@@ -2565,8 +2569,7 @@ class OVNClient(object):
         ovn_acl.update_acls_for_security_group(
             self._plugin, admin_context, self._nb_idl,
             rule['security_group_id'], rule,
-            is_add_acl=is_add_acl,
-            stateless_supported=self.is_allow_stateless_supported())
+            is_add_acl=is_add_acl)
 
     def create_security_group_rule(self, context, rule):
         self._process_security_group_rule(rule)
@@ -2577,6 +2580,84 @@ class OVNClient(object):
         self._process_security_group_rule(rule, is_add_acl=False)
         db_rev.delete_revision(
             context, rule['id'], ovn_const.TYPE_SECURITY_GROUP_RULES)
+
+    def _checkout_ip_list(self, addresses):
+        """Return address map for addresses.
+
+        This method will check out ipv4 and ipv6 address list from the
+        given address list.
+        Eg. if addresses = ["192.168.2.2/32", "2001:db8::/32"], it will
+        return {"4":["192.168.2.2/32"], "6":["2001:db8::/32"]}.
+
+        :param addresses: address list.
+        """
+        if not addresses:
+            addresses = []
+        ip_addresses = [netaddr.IPNetwork(ip)
+                        for ip in addresses]
+        addr_map = {const.IP_VERSION_4: [], const.IP_VERSION_6: []}
+        for addr in ip_addresses:
+            addr_map[addr.version].append(str(addr.cidr))
+        return addr_map
+
+    def create_address_group(self, context, address_group):
+        addr_map_all = self._checkout_ip_list(
+            address_group.get('addresses'))
+        external_ids = {ovn_const.OVN_ADDRESS_GROUP_ID_KEY:
+                        address_group['id'],
+                        ovn_const.OVN_REV_NUM_EXT_ID_KEY: str(
+                            utils.get_revision_number(
+                                address_group,
+                                ovn_const.TYPE_ADDRESS_GROUPS))
+                        }
+        attrs = [('external_ids', external_ids),]
+        for ip_version in const.IP_ALLOWED_VERSIONS:
+            as_name = utils.ovn_ag_addrset_name(address_group['id'],
+                                                'ip' + str(ip_version))
+            with self._nb_idl.transaction(check_error=True) as txn:
+                txn.add(self._nb_idl.address_set_add(
+                    as_name, addresses=addr_map_all[ip_version],
+                    may_exist=True))
+                txn.add(self._nb_idl.db_set(
+                    'Address_Set', as_name, *attrs))
+        db_rev.bump_revision(
+            context, address_group, ovn_const.TYPE_ADDRESS_GROUPS)
+
+    def update_address_group(self, context, address_group):
+        addr_map_db = self._checkout_ip_list(address_group['addresses'])
+        for ip_version in const.IP_ALLOWED_VERSIONS:
+            as_name = utils.ovn_ag_addrset_name(address_group['id'],
+                                                'ip' + str(ip_version))
+            check_rev_cmd = self._nb_idl.check_revision_number(
+                as_name, address_group, ovn_const.TYPE_ADDRESS_GROUPS)
+            with self._nb_idl.transaction(check_error=True) as txn:
+                txn.add(check_rev_cmd)
+                # For add/remove addresses
+                addr_ovn = self._nb_idl.get_address_set(as_name)[0].addresses
+                added = set(addr_map_db[ip_version]) - set(addr_ovn)
+                removed = set(addr_ovn) - set(addr_map_db[ip_version])
+                txn.add(self._nb_idl.address_set_add_addresses(
+                    as_name,
+                    added
+                ))
+                txn.add(self._nb_idl.address_set_remove_addresses(
+                    as_name,
+                    removed
+                ))
+        if check_rev_cmd.result == ovn_const.TXN_COMMITTED:
+            db_rev.bump_revision(
+                context, address_group, ovn_const.TYPE_ADDRESS_GROUPS)
+
+    def delete_address_group(self, context, address_group_id):
+        ipv4_as_name = utils.ovn_ag_addrset_name(address_group_id, 'ip4')
+        ipv6_as_name = utils.ovn_ag_addrset_name(address_group_id, 'ip6')
+        with self._nb_idl.transaction(check_error=True) as txn:
+            txn.add(self._nb_idl.address_set_del(
+                ipv4_as_name, if_exists=True))
+            txn.add(self._nb_idl.address_set_del(
+                ipv6_as_name, if_exists=True))
+        db_rev.delete_revision(
+            context, address_group_id, ovn_const.TYPE_ADDRESS_GROUPS)
 
     def _find_metadata_port(self, context, network_id):
         if not ovn_conf.is_ovn_metadata_enabled():
@@ -2657,8 +2738,8 @@ class OVNClient(object):
                       "for network %s", network_id)
             return False
 
-        port_subnet_ids = set(ip['subnet_id'] for ip in
-                              metadata_port['fixed_ips'])
+        port_subnet_ids = {ip['subnet_id'] for ip in
+                           metadata_port['fixed_ips']}
 
         # If this method is called from "create_subnet" or "update_subnet",
         # only the fixed IP address from this subnet should be updated in the
@@ -2677,7 +2758,7 @@ class OVNClient(object):
             network_id=[network_id], ip_version=[const.IP_VERSION_4],
             enable_dhcp=[True]))
 
-        subnet_ids = set(s['id'] for s in subnets)
+        subnet_ids = {s['id'] for s in subnets}
 
         # Find all subnets where metadata port doesn't have an IP in and
         # allocate one.

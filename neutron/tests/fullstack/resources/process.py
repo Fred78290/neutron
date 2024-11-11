@@ -38,7 +38,7 @@ CMD_FOLDER = 'agents'
 class ProcessFixture(fixtures.Fixture):
     def __init__(self, test_name, process_name, exec_name, config_filenames,
                  namespace=None, slice_name=None):
-        super(ProcessFixture, self).__init__()
+        super().__init__()
         self.test_name = test_name
         self.process_name = process_name
         self.exec_name = exec_name
@@ -67,7 +67,7 @@ class ProcessFixture(fixtures.Fixture):
         fileutils.ensure_tree(log_dir, mode=0o755)
 
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d--%H-%M-%S-%f")
-        log_file = "%s--%s.log" % (self.process_name, timestamp)
+        log_file = "{}--{}.log".format(self.process_name, timestamp)
         run_as_root = bool(self.namespace)
         exec_name = (self.exec_name
                      if run_as_root
@@ -175,7 +175,7 @@ class ProcessFixture(fixtures.Fixture):
 class RabbitmqEnvironmentFixture(fixtures.Fixture):
 
     def __init__(self, host="127.0.0.1"):
-        super(RabbitmqEnvironmentFixture, self).__init__()
+        super().__init__()
         self.host = host
 
     def _setUp(self):
@@ -216,7 +216,7 @@ class NeutronServerFixture(ServiceFixture):
     def __init__(self, env_desc, host_desc,
                  test_name, neutron_cfg_fixture, plugin_cfg_fixture,
                  service_cfg_fixtures=None):
-        super(NeutronServerFixture, self).__init__()
+        super().__init__()
         self.env_desc = env_desc
         self.host_desc = host_desc
         self.test_name = test_name
@@ -259,7 +259,7 @@ class OVSAgentFixture(ServiceFixture):
 
     def __init__(self, env_desc, host_desc,
                  test_name, neutron_cfg_fixture, agent_cfg_fixture):
-        super(OVSAgentFixture, self).__init__()
+        super().__init__()
         self.env_desc = env_desc
         self.host_desc = host_desc
         self.test_name = test_name
@@ -291,7 +291,7 @@ class OVSAgentFixture(ServiceFixture):
 class PlacementFixture(ServiceFixture):
 
     def __init__(self, env_desc, host_desc, test_name, placement_cfg_fixture):
-        super(PlacementFixture, self).__init__()
+        super().__init__()
         self.env_desc = env_desc
         self.host_desc = host_desc
         self.test_name = test_name
@@ -313,7 +313,7 @@ class SRIOVAgentFixture(ServiceFixture):
 
     def __init__(self, env_desc, host_desc,
                  test_name, neutron_cfg_fixture, agent_cfg_fixture):
-        super(SRIOVAgentFixture, self).__init__()
+        super().__init__()
         self.env_desc = env_desc
         self.host_desc = host_desc
         self.test_name = test_name
@@ -340,7 +340,7 @@ class LinuxBridgeAgentFixture(ServiceFixture):
     def __init__(self, env_desc, host_desc, test_name,
                  neutron_cfg_fixture, agent_cfg_fixture,
                  namespace=None):
-        super(LinuxBridgeAgentFixture, self).__init__()
+        super().__init__()
         self.env_desc = env_desc
         self.host_desc = host_desc
         self.test_name = test_name
@@ -368,12 +368,37 @@ class LinuxBridgeAgentFixture(ServiceFixture):
         )
 
 
-class L3AgentFixture(ServiceFixture):
+class NamespaceCleanupFixture(ServiceFixture):
+
+    def _setUp(self):
+        super()._setUp()
+        self.addCleanup(self.clean_namespaces)
+
+    def clean_namespaces(self):
+        """Delete all DHCP namespaces created by DHCP agent.
+
+        In some tests for DHCP agent HA agents are killed when handling DHCP
+        service for network(s). In such case DHCP namespace is not deleted by
+        DHCP agent and such namespaces are found and deleted using agent's
+        namespace suffix.
+        """
+
+        for namespace in ip_lib.list_network_namespaces():
+            if (hasattr(self, 'namespace_pattern') and
+                    self.namespace_pattern.match(namespace)):
+                try:
+                    ip_lib.delete_network_namespace(namespace)
+                except RuntimeError:
+                    # Continue cleaning even if namespace deletions fails
+                    pass
+
+
+class L3AgentFixture(NamespaceCleanupFixture):
 
     def __init__(self, env_desc, host_desc, test_name,
                  neutron_cfg_fixture, l3_agent_cfg_fixture,
                  namespace=None):
-        super(L3AgentFixture, self).__init__()
+        super().__init__()
         self.env_desc = env_desc
         self.host_desc = host_desc
         self.test_name = test_name
@@ -383,6 +408,8 @@ class L3AgentFixture(ServiceFixture):
         self.hostname = self.neutron_cfg_fixture.config['DEFAULT']['host']
 
     def _setUp(self):
+        super()._setUp()
+
         self.plugin_config = self.l3_agent_cfg_fixture.config
 
         config_filenames = [self.neutron_cfg_fixture.filename,
@@ -407,16 +434,19 @@ class L3AgentFixture(ServiceFixture):
                 namespace=self.namespace
             )
         )
+        self.namespace_pattern = re.compile(
+            r"qrouter-[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}@%s" %
+            self.get_namespace_suffix())
 
     def get_namespace_suffix(self):
         return self.plugin_config.DEFAULT.test_namespace_suffix
 
 
-class DhcpAgentFixture(ServiceFixture):
+class DhcpAgentFixture(NamespaceCleanupFixture):
 
     def __init__(self, env_desc, host_desc, test_name,
                  neutron_cfg_fixture, agent_cfg_fixture, namespace=None):
-        super(DhcpAgentFixture, self).__init__()
+        super().__init__()
         self.env_desc = env_desc
         self.host_desc = host_desc
         self.test_name = test_name
@@ -425,6 +455,8 @@ class DhcpAgentFixture(ServiceFixture):
         self.namespace = namespace
 
     def _setUp(self):
+        super()._setUp()
+
         self.plugin_config = self.agent_cfg_fixture.config
 
         config_filenames = [self.neutron_cfg_fixture.filename,
@@ -450,10 +482,9 @@ class DhcpAgentFixture(ServiceFixture):
                 namespace=self.namespace
             )
         )
-        self.dhcp_namespace_pattern = re.compile(
+        self.namespace_pattern = re.compile(
             r"qdhcp-[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}%s" %
             self.get_namespace_suffix())
-        self.addCleanup(self.clean_dhcp_namespaces)
 
     def get_agent_hostname(self):
         return self.neutron_cfg_fixture.config['DEFAULT']['host']
@@ -463,21 +494,4 @@ class DhcpAgentFixture(ServiceFixture):
 
     def kill(self):
         self.process_fixture.stop()
-        self.clean_dhcp_namespaces()
-
-    def clean_dhcp_namespaces(self):
-        """Delete all DHCP namespaces created by DHCP agent.
-
-        In some tests for DHCP agent HA agents are killed when handling DHCP
-        service for network(s). In such case DHCP namespace is not deleted by
-        DHCP agent and such namespaces are found and deleted using agent's
-        namespace suffix.
-        """
-
-        for namespace in ip_lib.list_network_namespaces():
-            if self.dhcp_namespace_pattern.match(namespace):
-                try:
-                    ip_lib.delete_network_namespace(namespace)
-                except RuntimeError:
-                    # Continue cleaning even if namespace deletions fails
-                    pass
+        self.clean_namespaces()

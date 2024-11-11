@@ -104,7 +104,7 @@ class PortInfo(collections.UserDict):
                  'removed': removed or set(),
                  'updated': updated or set(),
                  're_added': re_added or set()}
-        super(PortInfo, self).__init__(_dict)
+        super().__init__(_dict)
 
 
 def has_zero_prefixlen_address(ip_addresses):
@@ -133,8 +133,8 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
     connect local VLANs on the integration bridge to inter-hypervisor
     tunnels on the tunnel bridge.
 
-    For each virtual network realized as a VLAN or flat network, a
-    veth or a pair of patch ports is used to connect the local VLAN on
+    For each virtual network realized as a VLAN or flat network,
+    a pair of patch ports is used to connect the local VLAN on
     the integration bridge with the physical network bridge, with flow
     rules adding, modifying, or stripping VLAN tags as necessary.
     '''
@@ -156,7 +156,7 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
         :param bridge_classes: a dict for bridge classes.
         :param conf: an instance of ConfigOpts
         '''
-        super(OVSNeutronAgent, self).__init__()
+        super().__init__()
         self.conf = conf or cfg.CONF
         self.ovs = ovs_lib.BaseOVS()
         self.ext_manager = ext_manager
@@ -485,15 +485,11 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
             segmentation_id = local_vlan_map.get('segmentation_id')
             if net_uuid:
                 # TODO(sahid): This key thing should be normalized.
-                key = "%s/%s" % (net_uuid, segmentation_id)
+                key = "{}/{}".format(net_uuid, segmentation_id)
                 if (key not in self._local_vlan_hints and
                         local_vlan != ovs_const.DEAD_VLAN_TAG):
                     self.available_local_vlans.remove(local_vlan)
                     self._local_vlan_hints[key] = local_vlan
-
-    def _dispose_local_vlan_hints(self):
-        self.available_local_vlans.update(self._local_vlan_hints.values())
-        self._local_vlan_hints = {}
 
     def _reset_tunnel_ofports(self):
         self.tun_br_ofports = {n_const.TYPE_GENEVE: {},
@@ -1015,7 +1011,7 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
         except vlanmanager.MappingNotFound:
             # TODO(sahid): This local_vlan_hints should have its own
             # datastructure and model to be manipulated.
-            key = "%s/%s" % (net_uuid, segmentation_id)
+            key = "{}/{}".format(net_uuid, segmentation_id)
             lvid = self._local_vlan_hints.pop(key, None)
             if lvid is None:
                 if not self.available_local_vlans:
@@ -1627,7 +1623,7 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
         '''Setup the physical network bridges.
 
         Creates physical network bridges and links them to the
-        integration bridge using veths or patch ports.
+        integration bridge using patch ports.
 
         :param bridge_mappings: map physical network names to bridge names.
         '''
@@ -1660,26 +1656,11 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
             br.setup_default_table()
             self.phys_brs[physical_network] = br
 
-            # interconnect physical and integration bridges using veth/patches
+            # interconnect physical and integration bridges using patches
             int_if_name = plugin_utils.get_interface_name(
                 bridge, prefix=ovs_const.PEER_INTEGRATION_PREFIX)
             phys_if_name = plugin_utils.get_interface_name(
                 bridge, prefix=ovs_const.PEER_PHYSICAL_PREFIX)
-            # Interface type of port for physical and integration bridges must
-            # be same, so check only one of them.
-            # Not logging error here, as the interface may not exist yet.
-            # Type check is done to cleanup wrong interface if any.
-
-            # TODO(slaweq) In X release we can remove code which is here just
-            # to move from old "veth" interconnection between bridges to the
-            # patch ports (L1527 - L1547)
-            int_type = self.int_br.db_get_val("Interface", int_if_name, "type",
-                                              log_errors=False)
-            # Drop ports if the interface type doesn't match the
-            # configuration value
-            if int_type == 'veth':
-                self.int_br.delete_port(int_if_name)
-                br.delete_port(phys_if_name)
 
             # Setup int_br to physical bridge patches.  If they already
             # exist we leave them alone, otherwise we create them but don't
@@ -1846,11 +1827,11 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
             old_ports_not_ready_attrs = self.int_br.get_ports_attributes(
                 'Interface', columns=['name', 'external_ids', 'ofport'],
                 ports=old_ports_not_ready, if_exists=True)
-            now_ready_ports = set(
-                [p['name'] for p in old_ports_not_ready_attrs])
+            now_ready_ports = {
+                p['name'] for p in old_ports_not_ready_attrs}
             LOG.debug("Ports %s are now ready", now_ready_ports)
             old_ports_not_ready_yet = old_ports_not_ready - now_ready_ports
-            removed_ports = set([p['name'] for p in events['removed']])
+            removed_ports = {p['name'] for p in events['removed']}
             old_ports_not_ready_yet -= removed_ports
             LOG.debug("Ports %s were not ready at last iteration and are not "
                       "ready yet", old_ports_not_ready_yet)
@@ -2373,7 +2354,7 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
             priority=12,
             dl_vlan=lvm.vlan,
             dl_dst=port_detail['mac_address'],
-            actions='strip_vlan,output:{:d}'.format(port.ofport))
+            actions=f'strip_vlan,output:{port.ofport:d}')
 
         # For packets from internal ports or VM ports.
         br_int.add_flow(
@@ -2381,7 +2362,7 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
             priority=12,
             reg6=lvm.vlan,
             dl_dst=port_detail['mac_address'],
-            actions='output:{:d}'.format(port.ofport))
+            actions=f'output:{port.ofport:d}')
 
         patch_ofport = None
         if lvm.network_type in (
@@ -2513,7 +2494,7 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
         remote_tunnel_hash = cls.get_tunnel_hash(remote_ip, hashlen)
         if not remote_tunnel_hash:
             return None
-        return '%s-%s' % (network_type, remote_tunnel_hash)
+        return '{}-{}'.format(network_type, remote_tunnel_hash)
 
     def _agent_has_updates(self, polling_manager):
         return (polling_manager.is_polling_required or
@@ -2888,7 +2869,19 @@ class OVSNeutronAgent(l2population_rpc.L2populationRpcCallBackTunnelMixin,
                         self.update_retries_map_and_remove_devs_not_to_retry(
                             failed_devices, failed_ancillary_devices,
                             failed_devices_retries_map))
-                    self._dispose_local_vlan_hints()
+
+                    if len(self._local_vlan_hints):
+                        LOG.warning(
+                            "Agent rpc_loop - iteration:%(iter_num)d - "
+                            "the process was not able to clean local vlans "
+                            "(%(nb_hints)s failed). Please ensure that you "
+                            "do not have dead ports in the integration "
+                            "bridge.",
+                            {'iter_num': self.iter_num,
+                             'nb_hints': len(self._local_vlan_hints)})
+                        LOG.debug(
+                            "local_vlan_hints: %s", self._local_vlan_hints
+                        )
                 except Exception:
                     LOG.exception("Error while processing VIF ports")
                     # Put the ports back in self.updated_port

@@ -35,10 +35,10 @@ load_tests = testlib_api.module_load_tests
 # load_tests = test_base.optimize_db_test_loader(__file__)
 
 
-class IpamTestCase(testlib_api.SqlTestCase):
+class IpamTestCase(testlib_api.SqlTestCase, testlib_api.MySQLTestCaseMixin):
     """Base class for tests that aim to test ip allocation."""
     def setUp(self):
-        super(IpamTestCase, self).setUp()
+        super().setUp()
         cfg.CONF.set_override('notify_nova_on_port_status_changes', False)
         DB_PLUGIN_KLASS = 'neutron.db.db_base_plugin_v2.NeutronDbPluginV2'
         self.setup_coreplugin(DB_PLUGIN_KLASS)
@@ -57,7 +57,7 @@ class IpamTestCase(testlib_api.SqlTestCase):
     def result_set_to_dicts(self, resultset, keys):
         dicts = []
         for item in resultset:
-            item_dict = dict((x, item[x]) for x in keys)
+            item_dict = {x: item[x] for x in keys}
             dicts.append(item_dict)
         return dicts
 
@@ -138,11 +138,3 @@ class IpamTestCase(testlib_api.SqlTestCase):
         self.assert_ip_alloc_pool_matches(ip_alloc_pool_expected)
         with testtools.ExpectedException(n_exc.IpAddressGenerationFailure):
             self._create_port(self.port_id)
-
-
-class TestIpamMySQL(testlib_api.MySQLTestCaseMixin, IpamTestCase):
-    pass
-
-
-class TestIpamPostgreSQL(testlib_api.PostgreSQLTestCaseMixin, IpamTestCase):
-    pass

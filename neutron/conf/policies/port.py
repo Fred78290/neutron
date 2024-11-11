@@ -46,6 +46,9 @@ ACTION_PUT_TAGS = [
     {'method': 'PUT', 'path': TAGS_PATH},
     {'method': 'PUT', 'path': TAG_PATH},
 ]
+ACTION_POST_TAGS = [
+    {'method': 'POST', 'path': TAGS_PATH},
+]
 ACTION_DELETE_TAGS = [
     {'method': 'DELETE', 'path': TAGS_PATH},
     {'method': 'DELETE', 'path': TAG_PATH},
@@ -297,6 +300,25 @@ rules = [
         ),
         operations=ACTION_POST,
     ),
+    policy.DocumentedRuleDefault(
+        name='create_port:trusted',
+        check_str=base.ADMIN,
+        scope_types=['project'],
+        description=(
+            'Specify ``trusted`` attribute when creating a port'
+        ),
+        operations=ACTION_POST,
+    ),
+    policy.DocumentedRuleDefault(
+        name='create_ports_tags',
+        check_str=neutron_policy.policy_or(
+            base.ADMIN_OR_PROJECT_MEMBER,
+            neutron_policy.RULE_ADVSVC
+        ),
+        scope_types=['project'],
+        description='Create the port tags',
+        operations=ACTION_POST_TAGS,
+    ),
 
     policy.DocumentedRuleDefault(
         name='get_port',
@@ -381,6 +403,13 @@ rules = [
         check_str=base.ADMIN,
         scope_types=['project'],
         description='Get ``hints`` attribute of a port',
+        operations=ACTION_GET,
+    ),
+    policy.DocumentedRuleDefault(
+        name='get_port:trusted',
+        check_str=base.ADMIN,
+        scope_types=['project'],
+        description='Get ``trusted`` attribute of a port',
         operations=ACTION_GET,
     ),
     policy.DocumentedRuleDefault(
@@ -639,6 +668,13 @@ rules = [
         check_str=base.ADMIN,
         scope_types=['project'],
         description='Update ``hints`` attribute of a port',
+        operations=ACTION_PUT,
+    ),
+    policy.DocumentedRuleDefault(
+        name='update_port:trusted',
+        check_str=base.ADMIN,
+        scope_types=['project'],
+        description='Update ``trusted`` attribute of a port',
         operations=ACTION_PUT,
     ),
     policy.DocumentedRuleDefault(

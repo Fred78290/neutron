@@ -26,6 +26,7 @@ from neutron.common.ovn import constants as ovn_const
 from neutron.common.ovn import utils
 from neutron.common import utils as n_utils
 from neutron.conf.plugins.ml2.drivers.ovn import ovn_conf as ovn_config
+from neutron.db import ovn_revision_numbers_db as rev_db
 from neutron.tests.functional import base
 
 
@@ -40,7 +41,7 @@ class TestNBDbResources(base.TestOVNFunctionalBase):
         return True
 
     def setUp(self):
-        super(TestNBDbResources, self).setUp()
+        super().setUp()
         self.orig_get_random_mac = n_net.get_random_mac
         cfg.CONF.set_override('quota_subnet', -1, group='QUOTAS')
         ovn_config.cfg.CONF.set_override('ovn_metadata_enabled',
@@ -922,6 +923,25 @@ class TestPortSecurity(base.TestOVNFunctionalBase):
         self._verify_port_acls(port_id, expected_acls_with_sg_ps_enabled)
 
 
+class TestSecurityGroups(base.TestOVNFunctionalBase):
+
+    def test_security_group_creation_and_deletion(self):
+        sg = self._make_security_group(self.fmt)['security_group']
+        rev_num = rev_db.get_revision_row(self.context, sg['id'])
+        self.assertEqual(1, rev_num.revision_number)
+        for sg_rule in sg['security_group_rules']:
+            rev_num = rev_db.get_revision_row(self.context, sg_rule['id'])
+            self.assertEqual(0, rev_num.revision_number)
+
+        self._delete('security-groups', sg['id'])
+        self.assertIsNone(rev_db.get_revision_row(self.context, sg['id']))
+        # NOTE(ralonsoh): the deletion of the revision numbers of the SG rules
+        # will be fixed in a follow-up patch.
+        # for sg_rule in sg['security_group_rules']:
+        #     self.assertIsNone(rev_db.get_revision_row(self.context,
+        #                                               sg_rule['id']))
+
+
 class TestDNSRecords(base.TestOVNFunctionalBase):
     _extension_drivers = ['port_security', 'dns']
 
@@ -945,7 +965,7 @@ class TestDNSRecords(base.TestOVNFunctionalBase):
 
     def setUp(self):
         ovn_config.cfg.CONF.set_override('dns_domain', 'ovn.test')
-        super(TestDNSRecords, self).setUp()
+        super().setUp()
 
     def test_dns_records(self):
         expected_dns_records = []

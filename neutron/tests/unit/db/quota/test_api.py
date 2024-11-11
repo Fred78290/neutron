@@ -34,7 +34,7 @@ class TestQuotaDbApi(testlib_api.SqlTestCaseLight):
     def _set_context(self):
         self.project_id = 'Higuain'
         self.context = context.Context('Gonzalo', self.project_id,
-                                       is_admin=False, is_advsvc=False)
+                                       is_admin=False)
 
     def _create_reservation(self, resource_deltas,
                             project_id=None, expiration=None):
@@ -45,7 +45,7 @@ class TestQuotaDbApi(testlib_api.SqlTestCaseLight):
     def _create_quota_usage(self, resource, used, project_id=None):
         project_id = project_id or self.project_id
         return quota_api.set_quota_usage(context.get_admin_context(),
-            resource, project_id, in_use=used)
+                                         resource, project_id, in_use=used)
 
     def _verify_quota_usage(self, usage_info,
                             expected_resource=None,
@@ -60,7 +60,7 @@ class TestQuotaDbApi(testlib_api.SqlTestCaseLight):
             self.assertEqual(expected_used, usage_info.used)
 
     def setUp(self):
-        super(TestQuotaDbApi, self).setUp()
+        super().setUp()
         self._set_context()
         self.plugin = test_driver.FakePlugin()
         directory.add_plugin(const.CORE, self.plugin)
@@ -319,7 +319,7 @@ class TestQuotaDbApiAdminContext(TestQuotaDbApi):
     def _set_context(self):
         self.project_id = 'Higuain'
         self.context = context.Context('Gonzalo', self.project_id,
-                                       is_admin=True, is_advsvc=True)
+                                       is_admin=True)
 
     def test_get_quota_usage_by_resource(self):
         self._create_quota_usage('goals', 26)

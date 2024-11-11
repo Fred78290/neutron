@@ -16,6 +16,7 @@ from unittest import mock
 
 from neutron_lib.agent import topics
 from neutron_lib.api.definitions import metering as metering_apidef
+from neutron_lib import constants as n_const
 from neutron_lib import context
 from neutron_lib.plugins import constants
 from neutron_lib.plugins import directory
@@ -44,7 +45,7 @@ METERING_SERVICE_PLUGIN_KLASS = (
 )
 
 
-class MeteringTestExtensionManager(object):
+class MeteringTestExtensionManager:
 
     def get_resources(self):
         l3_res = ext_l3.L3.get_resources()
@@ -63,18 +64,18 @@ class TestMeteringPlugin(test_db_base_plugin_v2.NeutronDbPluginV2TestCase,
                          test_l3.L3NatTestCaseMixin,
                          test_metering_db.MeteringPluginDbTestCaseMixin):
 
-    resource_prefix_map = dict(
-        (k.replace('_', '-'), "/metering")
+    resource_prefix_map = {
+        k.replace('_', '-'): "/metering"
         for k in metering_apidef.RESOURCE_ATTRIBUTE_MAP.keys()
-    )
+    }
 
     def setUp(self):
         plugin = 'neutron.tests.unit.extensions.test_l3.TestL3NatIntPlugin'
         service_plugins = {'metering_plugin_name':
                            METERING_SERVICE_PLUGIN_KLASS}
         ext_mgr = MeteringTestExtensionManager()
-        super(TestMeteringPlugin, self).setUp(plugin=plugin, ext_mgr=ext_mgr,
-                                              service_plugins=service_plugins)
+        super().setUp(plugin=plugin, ext_mgr=ext_mgr,
+                      service_plugins=service_plugins)
 
         self.uuid = '654f6b9d-0f36-4ae5-bd1b-01616794ca60'
 
@@ -258,7 +259,7 @@ class TestMeteringPlugin(test_db_base_plugin_v2.NeutronDbPluginV2TestCase,
                                  'metering_label_id': self.uuid,
                                  'excluded': False,
                                  'id': second_uuid},
-                             'id': self.uuid}],
+                              'id': self.uuid}],
                          'id': self.uuid}]
 
         expected_del = [{'status': 'ACTIVE',
@@ -417,7 +418,8 @@ class TestMeteringPlugin(test_db_base_plugin_v2.NeutronDbPluginV2TestCase,
                          '_metering_labels': [
                              {'rule': {
                                  'destination_ip_prefix':
-                                     net_utils.AuthenticIPNetwork('0.0.0.0/0'),
+                                     net_utils.AuthenticIPNetwork(
+                                         n_const.IPv4_ANY),
                                  'source_ip_prefix':
                                      net_utils.AuthenticIPNetwork(
                                          '10.0.0.0/24'),
@@ -438,7 +440,8 @@ class TestMeteringPlugin(test_db_base_plugin_v2.NeutronDbPluginV2TestCase,
                          '_metering_labels': [
                              {'rule': {
                                  'destination_ip_prefix':
-                                     net_utils.AuthenticIPNetwork('0.0.0.0/0'),
+                                     net_utils.AuthenticIPNetwork(
+                                         n_const.IPv4_ANY),
                                  'source_ip_prefix':
                                      net_utils.AuthenticIPNetwork(
                                          '10.0.0.0/24'),
@@ -451,7 +454,7 @@ class TestMeteringPlugin(test_db_base_plugin_v2.NeutronDbPluginV2TestCase,
                          'id': self.uuid}]
 
         ip_prefixes = {'source_ip_prefix': '10.0.0.0/24',
-                       'destination_ip_prefix': '0.0.0.0/0'}
+                       'destination_ip_prefix': n_const.IPv4_ANY}
         with self.router():
             with self.metering_label() as label:
                 la = label['metering_label']
@@ -472,7 +475,7 @@ class TestMeteringPlugin(test_db_base_plugin_v2.NeutronDbPluginV2TestCase,
 
                 res = self._create_metering_label_rule(
                     self.fmt, la['id'], 'ingress', False,
-                    remote_ip_prefix='0.0.0.0/0',
+                    remote_ip_prefix=n_const.IPv4_ANY,
                     source_ip_prefix='10.0.0.0/24')
 
                 expected_error_code = 500
@@ -494,7 +497,7 @@ class TestMeteringPlugin(test_db_base_plugin_v2.NeutronDbPluginV2TestCase,
 
                 res = self._create_metering_label_rule(
                     self.fmt, la['id'], 'ingress', False,
-                    remote_ip_prefix='0.0.0.0/0',
+                    remote_ip_prefix=n_const.IPv4_ANY,
                     destination_ip_prefix='8.8.8.8/32')
 
                 expected_error_code = 500
@@ -556,10 +559,10 @@ class TestMeteringPluginL3AgentScheduler(
         test_l3.L3NatTestCaseMixin,
         test_metering_db.MeteringPluginDbTestCaseMixin):
 
-    resource_prefix_map = dict(
-        (k.replace('_', '-'), "/metering")
+    resource_prefix_map = {
+        k.replace('_', '-'): "/metering"
         for k in metering_apidef.RESOURCE_ATTRIBUTE_MAP.keys()
-    )
+    }
 
     def setUp(self, plugin_str=None, service_plugins=None, scheduler=None):
         if not plugin_str:
@@ -574,9 +577,8 @@ class TestMeteringPluginL3AgentScheduler(
             scheduler = plugin_str
 
         ext_mgr = MeteringTestExtensionManager()
-        super(TestMeteringPluginL3AgentScheduler,
-              self).setUp(plugin=plugin_str, ext_mgr=ext_mgr,
-                          service_plugins=service_plugins)
+        super().setUp(plugin=plugin_str, ext_mgr=ext_mgr,
+                      service_plugins=service_plugins)
 
         self.uuid = '654f6b9d-0f36-4ae5-bd1b-01616794ca60'
 
@@ -666,7 +668,7 @@ class TestMeteringPluginL3AgentSchedulerServicePlugin(
         plugin_str = ('neutron.tests.unit.extensions.test_l3.'
                       'TestNoL3NatPlugin')
 
-        super(TestMeteringPluginL3AgentSchedulerServicePlugin, self).setUp(
+        super().setUp(
             plugin_str=plugin_str, service_plugins=service_plugins,
             scheduler=l3_plugin)
 
@@ -676,10 +678,10 @@ class TestMeteringPluginRpcFromL3Agent(
         test_l3.L3NatTestCaseMixin,
         test_metering_db.MeteringPluginDbTestCaseMixin):
 
-    resource_prefix_map = dict(
-        (k.replace('_', '-'), "/metering")
+    resource_prefix_map = {
+        k.replace('_', '-'): "/metering"
         for k in metering_apidef.RESOURCE_ATTRIBUTE_MAP
-    )
+    }
 
     def setUp(self):
         service_plugins = {'metering_plugin_name':
@@ -689,9 +691,8 @@ class TestMeteringPluginRpcFromL3Agent(
                   'TestL3NatIntAgentSchedulingPlugin')
 
         ext_mgr = MeteringTestExtensionManager()
-        super(TestMeteringPluginRpcFromL3Agent,
-              self).setUp(plugin=plugin, service_plugins=service_plugins,
-                          ext_mgr=ext_mgr)
+        super().setUp(plugin=plugin, service_plugins=service_plugins,
+                      ext_mgr=ext_mgr)
 
         self.meter_plugin = directory.get_plugin(constants.METERING)
 
@@ -762,7 +763,7 @@ class TestMeteringPluginRpcFromL3Agent(
                         data = callbacks.get_sync_data_metering(
                             self.adminContext, host='agent1')
                         self.assertEqual(
-                            set(['router1']), set([r['name'] for r in data]))
+                            {'router1'}, {r['name'] for r in data})
 
                 self._remove_external_gateway_from_router(
                     router1['router']['id'], s['network_id'])
@@ -785,7 +786,7 @@ class TestMeteringPluginRpcFromL3Agent(
                         data = callbacks.get_sync_data_metering(
                             self.adminContext, host='agent1')
                         self.assertEqual(
-                            set(['router1']), set([r['name'] for r in data]))
+                            {'router1'}, {r['name'] for r in data})
 
                     self._remove_external_gateway_from_router(
                         router2['router']['id'], s['network_id'])

@@ -25,7 +25,7 @@ from neutron.extensions import local_ip as lip_ext
 from neutron.tests.unit.db import test_db_base_plugin_v2
 
 
-class LocalIPTestExtensionManager(object):
+class LocalIPTestExtensionManager:
 
     def get_resources(self):
         return lip_ext.Local_ip.get_resources()
@@ -48,16 +48,14 @@ class LocalIPTestBase(test_db_base_plugin_v2.NeutronDbPluginV2TestCase):
         req = self.new_create_request('local-ips', local_ip,
                                       tenant_id=self._tenant_id, as_admin=True)
         res = req.get_response(self.ext_api)
-        if res.status_int >= webob.exc.HTTPClientError.code:
-            raise webob.exc.HTTPClientError(code=res.status_int)
+        self._check_http_response(res)
         return self.deserialize(self.fmt, res)
 
     def _update_local_ip(self, lip_id, data):
         update_req = self.new_update_request(
             'local-ips', data, lip_id, tenant_id=self._tenant_id)
         res = update_req.get_response(self.ext_api)
-        if res.status_int >= webob.exc.HTTPClientError.code:
-            raise webob.exc.HTTPClientError(code=res.status_int)
+        self._check_http_response(res)
         return self.deserialize(self.fmt, res)
 
     def _create_local_ip_association(self, local_ip_id, fixed_port_id,
@@ -71,8 +69,7 @@ class LocalIPTestBase(test_db_base_plugin_v2.NeutronDbPluginV2TestCase):
                                       subresource='port_associations',
                                       tenant_id=self._tenant_id)
         res = req.get_response(self.ext_api)
-        if res.status_int >= webob.exc.HTTPClientError.code:
-            raise webob.exc.HTTPClientError(code=res.status_int)
+        self._check_http_response(res)
         return self.deserialize(self.fmt, res)
 
     @contextlib.contextmanager
@@ -94,8 +91,8 @@ class TestLocalIP(LocalIPTestBase):
             'neutron.services.local_ip.local_ip_plugin.LocalIPPlugin',)
         mock.patch("neutron.api.rpc.handlers.resources_rpc."
                    "ResourcesPushRpcApi.push").start()
-        super(TestLocalIP, self).setUp(ext_mgr=ext_mgr,
-                                       service_plugins=svc_plugins)
+        super().setUp(ext_mgr=ext_mgr,
+                      service_plugins=svc_plugins)
 
     def test_create_local_ip_with_local_port_id(self):
         with self.port() as p:
@@ -335,7 +332,7 @@ class TestLocalIP(LocalIPTestBase):
                 self._create_local_ip_association(
                     lip['id'], fixed_port['id'])
                 self.fail("Local IP associated with Port "
-                        "with no IPs")
+                          "with no IPs")
             except webob.exc.HTTPClientError as e:
                 self.assertEqual(400, e.code)
 

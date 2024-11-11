@@ -24,7 +24,9 @@ from oslo_utils import timeutils
 import sqlalchemy as sa
 from sqlalchemy.orm import exc
 
+from neutron.common.ovn import constants as ovn_const
 from neutron.common.ovn import utils as ovn_utils
+from neutron.db.models import address_group  # noqa
 from neutron.db.models import l3  # noqa
 from neutron.db.models import ovn as ovn_models
 from neutron.db.models import securitygroup  # noqa
@@ -35,38 +37,19 @@ CONF = cfg.CONF
 
 STD_ATTR_MAP = standard_attr.get_standard_attr_resource_model_map()
 
-# NOTE(ralonsoh): to be moved to neutron-lib
-TYPE_NETWORKS = 'networks'
-TYPE_PORTS = 'ports'
-TYPE_SECURITY_GROUP_RULES = 'security_group_rules'
-TYPE_ROUTERS = 'routers'
-TYPE_ROUTER_PORTS = 'router_ports'
-TYPE_SECURITY_GROUPS = 'security_groups'
-TYPE_FLOATINGIPS = 'floatingips'
-TYPE_SUBNETS = 'subnets'
-
-_TYPES_PRIORITY_ORDER = (
-    TYPE_NETWORKS,
-    TYPE_SECURITY_GROUPS,
-    TYPE_SUBNETS,
-    TYPE_ROUTERS,
-    TYPE_PORTS,
-    TYPE_ROUTER_PORTS,
-    TYPE_FLOATINGIPS,
-    TYPE_SECURITY_GROUP_RULES)
-
 # The order in which the resources should be created or updated by the
 # maintenance task: Root ones first and leafs at the end.
 MAINTENANCE_CREATE_UPDATE_TYPE_ORDER = [
     (ovn_models.OVNRevisionNumbers.resource_type == resource_type, idx)
-    for idx, resource_type in enumerate(_TYPES_PRIORITY_ORDER, 1)
+    for idx, resource_type in enumerate(ovn_const.TYPES_PRIORITY_ORDER, 1)
 ]
 
 # The order in which the resources should be deleted by the maintenance
 # task: Leaf ones first and roots at the end.
 MAINTENANCE_DELETE_TYPE_ORDER = [
     (ovn_models.OVNRevisionNumbers.resource_type == resource_type, idx)
-    for idx, resource_type in enumerate(reversed(_TYPES_PRIORITY_ORDER), 1)
+    for idx, resource_type in
+    enumerate(reversed(ovn_const.TYPES_PRIORITY_ORDER), 1)
 ]
 
 INITIAL_REV_NUM = -1
@@ -79,7 +62,8 @@ INCONSISTENCIES_OLDER_THAN = 60
 # 1:2 mapping for OVN, neutron router ports are simple ports, but
 # for OVN we handle LSP & LRP objects
 if STD_ATTR_MAP:
-    STD_ATTR_MAP[TYPE_ROUTER_PORTS] = STD_ATTR_MAP[TYPE_PORTS]
+    STD_ATTR_MAP[ovn_const.TYPE_ROUTER_PORTS] = (
+        STD_ATTR_MAP[ovn_const.TYPE_PORTS])
 
 
 # NOTE(ralonsoh): to be moved to neutron-lib
@@ -90,6 +74,12 @@ class StandardAttributeIDNotFound(n_exc.NeutronException):
 # NOTE(ralonsoh): to be moved to neutron-lib
 class UnknownResourceType(n_exc.NeutronException):
     message = 'Uknown resource type: %(resource_type)s'
+
+
+# NOTE(ralonsoh): to be moved to neutron-lib
+class RevisionNumberNotDefined(n_exc.NeutronException):
+    message = ('Unique revision number not found for %(resource_uuid)s, '
+               'the resource type is required in query')
 
 
 def _get_standard_attr_id(context, resource_uuid, resource_type):
@@ -155,14 +145,26 @@ def _ensure_revision_row_exist(context, resource, resource_type, std_attr_id):
 
 
 @db_api.retry_if_session_inactive()
-def get_revision_row(context, resource_uuid):
+@db_api.CONTEXT_READER
+def get_revision_row(context, resource_uuid, resource_type=None):
+    """Retrieve the resource revision number
+
+    Only the Neutron ports can have two revision number registers, one for the
+    Logical_Switch_Port and another for the Logical_Router_Port, if this port
+    is a router interface. It is not strictly needed to filter by resource_type
+    if the resource is not a port.
+    """
     try:
-        with db_api.CONTEXT_READER.using(context):
-            return context.session.query(
-                ovn_models.OVNRevisionNumbers).filter_by(
-                    resource_uuid=resource_uuid).one()
+        filters = {'resource_uuid': resource_uuid}
+        if resource_type:
+            filters['resource_type'] = resource_type
+        return context.session.query(
+            ovn_models.OVNRevisionNumbers).filter_by(
+            **filters).one()
     except exc.NoResultFound:
         pass
+    except exc.MultipleResultsFound:
+        raise RevisionNumberNotDefined(resource_uuid=resource_uuid)
 
 
 @db_api.retry_if_session_inactive()

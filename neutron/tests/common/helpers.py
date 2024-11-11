@@ -18,15 +18,18 @@ import math
 import os
 import random
 import signal
+import typing
 
 from neutron_lib.agent import topics
 from neutron_lib import constants
 from neutron_lib import context
+from neutron_lib import exceptions
 from oslo_utils import timeutils
 from oslo_utils import versionutils
 
 import neutron
 from neutron.agent.common import ovs_lib
+from neutron.agent.linux import utils as linux_utils
 from neutron.db import agents_db
 
 HOST = 'localhost'
@@ -164,10 +167,12 @@ def _get_l2_agent_dict(host, agent_type, binary, tunnel_types=None,
 
 def register_ovs_agent(host=HOST, agent_type=constants.AGENT_TYPE_OVS,
                        binary=constants.AGENT_PROCESS_OVS,
-                       tunnel_types=['vxlan'], tunneling_ip='20.0.0.1',
+                       tunnel_types=None, tunneling_ip='20.0.0.1',
                        interface_mappings=None, bridge_mappings=None,
                        l2pop_network_types=None, plugin=None, start_flag=True,
                        integration_bridge=None):
+    if tunnel_types is None:
+        tunnel_types = ['vxlan']
     agent = _get_l2_agent_dict(host, agent_type, binary, tunnel_types,
                                tunneling_ip, interface_mappings,
                                bridge_mappings, l2pop_network_types,
@@ -179,9 +184,11 @@ def register_ovs_agent(host=HOST, agent_type=constants.AGENT_TYPE_OVS,
 def register_linuxbridge_agent(host=HOST,
                                agent_type=constants.AGENT_TYPE_LINUXBRIDGE,
                                binary=constants.AGENT_PROCESS_LINUXBRIDGE,
-                               tunnel_types=['vxlan'], tunneling_ip='20.0.0.1',
+                               tunnel_types=None, tunneling_ip='20.0.0.1',
                                interface_mappings=None, bridge_mappings=None,
                                plugin=None):
+    if tunnel_types is None:
+        tunnel_types = ['vxlan']
     agent = _get_l2_agent_dict(host, agent_type, binary, tunnel_types,
                                tunneling_ip=tunneling_ip,
                                interface_mappings=interface_mappings,
@@ -239,7 +246,7 @@ class TestTimerTimeout(Exception):
     pass
 
 
-class TestTimer(object):
+class TestTimer:
     """Timer context manager class for testing.
 
     This class can be used inside a fixtures._fixtures.timeout.Timeout context.
@@ -278,3 +285,19 @@ class TestTimer(object):
 
         if self._alarm_fn:
             self._alarm_fn(timeout)
+
+
+def pgrep(
+        command: str,
+        entire_command_line: bool = True
+) -> typing.Optional[str]:
+    cmd = ['pgrep']
+    if entire_command_line:
+        cmd += ['-f']
+    cmd += [command]
+    try:
+        result = linux_utils.execute(cmd)
+    except exceptions.ProcessExecutionError:
+        return
+
+    return result[0] if result else None

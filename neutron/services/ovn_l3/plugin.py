@@ -54,7 +54,6 @@ from neutron.services.ovn_l3.service_providers import driver_controller
 from neutron.services.portforwarding.drivers.ovn import driver \
     as port_forwarding
 
-
 LOG = log.getLogger(__name__)
 
 
@@ -87,7 +86,7 @@ class OVNL3RouterPlugin(service_base.ServicePluginBase,
                                          floatingip=l3_models.FloatingIP)
     def __init__(self):
         LOG.info("Starting OVNL3RouterPlugin")
-        super(OVNL3RouterPlugin, self).__init__()
+        super().__init__()
         self._plugin_property = None
         self._mech = None
         self._initialize_plugin_driver()
@@ -166,7 +165,7 @@ class OVNL3RouterPlugin(service_base.ServicePluginBase,
                                       interface_info):
         try:
             router_interface_info = (
-                super(OVNL3RouterPlugin, self).add_router_interface(
+                super().add_router_interface(
                     context, router_id, interface_info))
         except n_exc.PortInUse:
             # NOTE(lucasagomes): If the port is already being used it means
@@ -192,7 +191,7 @@ class OVNL3RouterPlugin(service_base.ServicePluginBase,
         # this method to create the floating IP in the DB with status down,
         # while the flavor drivers are responsible for calling the correct
         # backend to instatiate the floating IP in the data plane
-        return super(OVNL3RouterPlugin, self).create_floatingip(
+        return super().create_floatingip(
             context, floatingip, initial_status)
 
     def update_floatingip_status(self, context, floatingip_id, status):
@@ -208,7 +207,7 @@ class OVNL3RouterPlugin(service_base.ServicePluginBase,
     @db_api.retry_if_session_inactive()
     def update_floatingip_status_retry(self, context, floatingip_id, status):
         with db_api.CONTEXT_WRITER.using(context):
-            return super(OVNL3RouterPlugin, self).update_floatingip_status(
+            return super().update_floatingip_status(
                 context, floatingip_id, status)
 
     def _get_gateway_port_physnet_mapping(self):
@@ -250,7 +249,18 @@ class OVNL3RouterPlugin(service_base.ServicePluginBase,
                 port = self._plugin.update_port(
                     context, port['id'],
                     {'port': {portbindings.HOST_ID: host}})
-
+                # Updates OVN NB database with hostname for lsp router
+                # gateway port
+                with self._nb_ovn.transaction(check_error=True) as txn:
+                    ext_ids = (
+                        "external_ids",
+                        {ovn_const.OVN_HOST_ID_EXT_ID_KEY: host},
+                    )
+                    txn.add(
+                        self._nb_ovn.db_set(
+                            "Logical_Switch_Port", port["id"], ext_ids
+                        )
+                    )
             if port['status'] != status:
                 self._plugin.update_port_status(context, port['id'], status)
 
@@ -330,9 +340,9 @@ class OVNL3RouterPlugin(service_base.ServicePluginBase,
         router_ids = {port['device_id'] for port in gw_ports
                       if utils.is_ovn_provider_router(
                           l3plugin.get_router(context, port['device_id']))}
-        remove = [{'destination': '0.0.0.0/0', 'nexthop': orig_gw_ip}
+        remove = [{'destination': n_const.IPv4_ANY, 'nexthop': orig_gw_ip}
                   ] if orig_gw_ip else []
-        add = [{'destination': '0.0.0.0/0', 'nexthop': current_gw_ip}
+        add = [{'destination': n_const.IPv4_ANY, 'nexthop': current_gw_ip}
                ] if current_gw_ip else []
         with l3plugin._nb_ovn.transaction(check_error=True) as txn:
             for router_id in router_ids:

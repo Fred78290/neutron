@@ -29,6 +29,7 @@ from neutron.api import extensions
 from neutron.api.v2 import router
 from neutron.common import config
 from neutron.conf import quota as qconf
+from neutron.db.quota import api as quota_api
 from neutron.db.quota import driver
 from neutron.db.quota import driver_nolock
 from neutron.db.quota import driver_null
@@ -47,7 +48,7 @@ _get_path = test_base._get_path
 class QuotaExtensionTestCase(testlib_api.WebTestCase):
 
     def setUp(self):
-        super(QuotaExtensionTestCase, self).setUp()
+        super().setUp()
         # Ensure existing ExtensionManager is not used
         extensions.PluginAwareExtensionManager._instance = None
 
@@ -90,7 +91,7 @@ class QuotaExtensionDbTestCase(QuotaExtensionTestCase):
     def setUp(self):
         cfg.CONF.set_override(
             'quota_driver', qconf.QUOTA_DB_DRIVER, group='QUOTAS')
-        super(QuotaExtensionDbTestCase, self).setUp()
+        super().setUp()
 
     def test_quotas_loaded_right(self):
         res = self.api.get(_get_path('quotas', fmt=self.fmt))
@@ -249,7 +250,7 @@ class QuotaExtensionDbTestCase(QuotaExtensionTestCase):
     def test_update_quotas_to_unlimited(self):
         project_id = 'project_id1'
         env = test_base._get_neutron_env(project_id, as_admin=True)
-        quotas = {'quota': {'network': -1}}
+        quotas = {'quota': {'network': quota_api.UNLIMITED_QUOTA}}
         res = self.api.put(_get_path('quotas', id=project_id, fmt=self.fmt),
                            self.serialize(quotas), extra_environ=env,
                            expect_errors=False)
@@ -291,7 +292,7 @@ class QuotaExtensionDbTestCase(QuotaExtensionTestCase):
     def test_update_attributes(self):
         project_id = 'project_id1'
         env = test_base._get_neutron_env(project_id + '2', as_admin=True)
-        quotas = {'quota': {'extra1': 100}}
+        quotas = {'quota': {'extra1': 100, 'force': True}}
         res = self.api.put(_get_path('quotas', id=project_id, fmt=self.fmt),
                            self.serialize(quotas), extra_environ=env)
         self.assertEqual(200, res.status_int)
@@ -302,16 +303,18 @@ class QuotaExtensionDbTestCase(QuotaExtensionTestCase):
         self.assertEqual(100, quota['quota']['extra1'])
 
     @mock.patch.object(driver_nolock.DbQuotaNoLockDriver, 'get_resource_usage')
-    def test_update_quotas_check_limit(self, mock_get_resource_usage):
+    def test_update_quotas_force(self, mock_get_resource_usage):
         tenant_id = 'tenant_id1'
         env = test_base._get_neutron_env(tenant_id, as_admin=True)
-        quotas = {'quota': {'network': 100, 'check_limit': False}}
+        # force=True; no resource usage check
+        quotas = {'quota': {'network': 100, 'force': True}}
         res = self.api.put(_get_path('quotas', id=tenant_id, fmt=self.fmt),
                            self.serialize(quotas), extra_environ=env,
                            expect_errors=False)
         self.assertEqual(200, res.status_int)
 
-        quotas = {'quota': {'network': 50, 'check_limit': True}}
+        # force=False; before the quota is set, there is a resource usage check
+        quotas = {'quota': {'network': 50}}  # force=False by default
         mock_get_resource_usage.return_value = 51
         res = self.api.put(_get_path('quotas', id=tenant_id, fmt=self.fmt),
                            self.serialize(quotas), extra_environ=env,
@@ -423,7 +426,7 @@ class QuotaExtensionCfgTestCase(QuotaExtensionTestCase):
     def setUp(self):
         cfg.CONF.set_override(
             'quota_driver', qconf.QUOTA_DB_DRIVER, group='QUOTAS')
-        super(QuotaExtensionCfgTestCase, self).setUp()
+        super().setUp()
 
     def test_quotas_default_values(self):
         self._test_quota_default_values(
@@ -495,8 +498,8 @@ class TestDbQuotaDriver(base.BaseTestCase):
 
             self.assertEqual(quotas, foo_quotas)
             get_project_quotas.assert_called_once_with(ctx,
-                                                      default_quotas,
-                                                      target_project)
+                                                       default_quotas,
+                                                       target_project)
 
 
 class TestQuotaDriverLoad(base.BaseTestCase):

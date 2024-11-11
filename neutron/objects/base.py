@@ -86,7 +86,7 @@ def register_filter_hook_on_model(model, filter_name):
     obj_class.add_extra_filter_name(filter_name)
 
 
-class LazyQueryIterator(object):
+class LazyQueryIterator:
     def __init__(self, obj_class, lazy_query):
         self.obj_class = obj_class
         self.context = None
@@ -105,7 +105,7 @@ class LazyQueryIterator(object):
         return item
 
 
-class Pager(object):
+class Pager:
     '''Pager class
 
     This class represents a pager object. It is consumed by get_objects to
@@ -187,7 +187,7 @@ class NeutronObject(obj_base.VersionedObject,
     lazy_fields = set()
 
     def __init__(self, context=None, **kwargs):
-        super(NeutronObject, self).__init__(context, **kwargs)
+        super().__init__(context, **kwargs)
         self._load_synthetic_fields = True
         self.obj_set_defaults()
 
@@ -373,7 +373,7 @@ def _guarantee_rw_subtransaction(func):
 class DeclarativeObject(abc.ABCMeta):
 
     def __init__(cls, name, bases, dct):
-        super(DeclarativeObject, cls).__init__(name, bases, dct)
+        super().__init__(name, bases, dct)
         # TODO(ralonsoh): remove once bp/keystone-v3 migration finishes.
         if 'project_id' in cls.fields:
             obj_extra_fields_set = set(cls.obj_extra_fields)
@@ -474,7 +474,7 @@ class NeutronDbObject(NeutronObject, metaclass=DeclarativeObject):
     # obj_extra_fields = []
 
     def __init__(self, *args, **kwargs):
-        super(NeutronDbObject, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._captured_db_model = None
 
     @property
@@ -593,7 +593,7 @@ class NeutronDbObject(NeutronObject, metaclass=DeclarativeObject):
         try:
             is_attr_nullable = self.fields[attrname].nullable
         except KeyError:
-            return super(NeutronDbObject, self).obj_load_attr(attrname)
+            return super().obj_load_attr(attrname)
         if is_attr_nullable:
             self[attrname] = None
 
@@ -608,7 +608,7 @@ class NeutronDbObject(NeutronObject, metaclass=DeclarativeObject):
         return db_api.CONTEXT_READER.using(context)
 
     @classmethod
-    def get_object(cls, context, fields=None, **kwargs):
+    def get_object(cls, context, fields=None, return_db_obj=False, **kwargs):
         """Fetch a single object
 
         Return the first result of given context or None if the result doesn't
@@ -620,6 +620,8 @@ class NeutronDbObject(NeutronObject, metaclass=DeclarativeObject):
                        avoid loading synthetic fields when possible, and
                        does not affect db queries. Default is None, which
                        is the same as []. Example: ['id', 'name']
+        :param return_db_obj: return the DB model object instead of loading
+                              the OVO; that could save some time.
         :param kwargs: multiple keys defined by key=value pairs
         :return: single object of NeutronDbObject class or None
         """
@@ -633,6 +635,8 @@ class NeutronDbObject(NeutronObject, metaclass=DeclarativeObject):
         with cls.db_context_reader(context):
             db_obj = obj_db_api.get_object(
                 cls, context, **cls.modify_fields_to_db(kwargs))
+            if return_db_obj:
+                return db_obj
             if db_obj:
                 return cls._load_object(context, db_obj, fields=fields)
 
@@ -724,7 +728,7 @@ class NeutronDbObject(NeutronObject, metaclass=DeclarativeObject):
         # update revision numbers
         db_obj = None
         if cls.has_standard_attributes():
-            return super(NeutronDbObject, cls).update_object(
+            return super().update_object(
                 context, values, validate_filters=False, **kwargs)
         else:
             with cls.db_context_writer(context):
@@ -752,7 +756,7 @@ class NeutronDbObject(NeutronObject, metaclass=DeclarativeObject):
             # if we have standard attributes, we will need to fetch records to
             # update revision numbers
             if cls.has_standard_attributes():
-                return super(NeutronDbObject, cls).update_objects(
+                return super().update_objects(
                     context, values, validate_filters=False, **kwargs)
             return obj_db_api.update_objects(
                 cls, context,

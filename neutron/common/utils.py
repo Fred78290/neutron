@@ -53,7 +53,6 @@ from oslo_utils import uuidutils
 from oslo_utils import versionutils
 from osprofiler import profiler
 from sqlalchemy.dialects.mysql import dialect as mysql_dialect
-from sqlalchemy.dialects.postgresql import dialect as postgresql_dialect
 from sqlalchemy.dialects.sqlite import dialect as sqlite_dialect
 from sqlalchemy.sql.expression import func as sql_func
 
@@ -75,7 +74,7 @@ class WaitTimeout(Exception):
     """Default exception coming from wait_until_true() function."""
 
 
-class LockWithTimer(object):
+class LockWithTimer:
     def __init__(self, threshold):
         self._threshold = threshold
         self.timestamp = 0
@@ -149,8 +148,8 @@ def get_dhcp_agent_device_id(network_id, host, segmentation_id=None):
     local_hostname = host.split('.')[0]
     host_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, str(local_hostname))
     if not segmentation_id:
-        return 'dhcp%s-%s' % (host_uuid, network_id)
-    return 'dhcp%s-%s-%s' % (host_uuid, network_id, segmentation_id)
+        return 'dhcp{}-{}'.format(host_uuid, network_id)
+    return 'dhcp{}-{}-{}'.format(host_uuid, network_id, segmentation_id)
 
 
 def is_dns_servers_any_address(dns_servers, ip_version):
@@ -160,7 +159,7 @@ def is_dns_servers_any_address(dns_servers, ip_version):
             netaddr.IPNetwork(dns_servers[0]).ip == ip_any)
 
 
-class exception_logger(object):
+class exception_logger:
     """Wrap a function and log raised exception
 
     :param logger: the logger to log the exception default is LOG.exception
@@ -360,7 +359,7 @@ def is_version_greater_equal(version1, version2):
             versionutils.convert_version_to_tuple(version2))
 
 
-class DelayedStringRenderer(object):
+class DelayedStringRenderer:
     """Takes a callable and its args and calls when __str__ is called
 
     Useful for when an argument to a logging statement is expensive to
@@ -382,7 +381,7 @@ def _hex_format(port, mask=0):
     def hex_str(num):
         return format(num, '#06x')
     if mask > 0:
-        return "%s/%s" % (hex_str(port), hex_str(0xffff & ~mask))
+        return "{}/{}".format(hex_str(port), hex_str(0xffff & ~mask))
     return hex_str(port)
 
 
@@ -745,7 +744,7 @@ def wait_until_true(predicate, timeout=60, sleep=1, exception=None):
         raise WaitTimeout(_("Timed out after %d seconds") % timeout)
 
 
-class classproperty(object):
+class classproperty:
     def __init__(self, f):
         self.func = f
 
@@ -859,7 +858,7 @@ def disable_extension_by_service_plugin(core_plugin, service_plugin):
 
 
 def get_port_fixed_ips_set(port):
-    return set([ip["ip_address"] for ip in port.get("fixed_ips", [])])
+    return {ip["ip_address"] for ip in port.get("fixed_ips", [])}
 
 
 def port_ip_changed(new_port, original_port):
@@ -1018,9 +1017,8 @@ def get_sql_random_method(sql_dialect_name):
     """Return the SQL random method supported depending on the dialect."""
     # NOTE(ralonsoh): this method is a good candidate to be implemented in
     # oslo.db.
-    # https://www.postgresql.org/docs/8.2/functions-math.html
     # https://www.sqlite.org/c3ref/randomness.html
-    if sql_dialect_name in (postgresql_dialect.name, sqlite_dialect.name):
+    if sql_dialect_name == sqlite_dialect.name:
         return sql_func.random
     # https://dev.mysql.com/doc/refman/8.0/en/mathematical-functions.html
     elif sql_dialect_name == mysql_dialect.name:
@@ -1103,3 +1101,16 @@ def parse_permitted_ethertypes(permitted_ethertypes):
             continue
 
     return ret
+
+
+def read_file(path: str) -> str:
+    """Return the content of a text file as a string
+
+    The output includes the empty lines too. If the file does not exist,
+    returns an empty string.
+    """
+    try:
+        with open(path) as file:
+            return file.read()
+    except FileNotFoundError:
+        return ''

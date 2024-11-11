@@ -15,10 +15,15 @@
 import functools
 import os
 import signal
+import tempfile
+
+from oslo_utils import fileutils
+import testscenarios
 
 from neutron.agent.common import async_process
 from neutron.agent.linux import utils
 from neutron.common import utils as common_utils
+from neutron.privileged.agent.linux import utils as priv_utils
 from neutron.tests.functional.agent.linux import test_async_process
 from neutron.tests.functional import base as functional_base
 
@@ -90,7 +95,7 @@ class TestGetRootHelperChildPid(functional_base.BaseSudoTestCase):
             "get_root_helper_child_pid is expected to return the pid of the "
             "bash process")
         self._addcleanup_sleep_process(child_pid)
-        with open('/proc/%s/cmdline' % child_pid, 'r') as f_proc_cmdline:
+        with open('/proc/%s/cmdline' % child_pid) as f_proc_cmdline:
             cmdline = f_proc_cmdline.readline().split('\0')[0]
         self.assertIn('bash', cmdline)
 
@@ -169,6 +174,42 @@ class TestFindChildPids(functional_base.BaseSudoTestCase):
             self.assertIn(_pid, child_pids_recursive_after)
 
     def test_find_non_existing_process(self):
-        with open('/proc/sys/kernel/pid_max', 'r') as fd:
+        with open('/proc/sys/kernel/pid_max') as fd:
             pid_max = int(fd.readline().strip())
         self.assertEqual([], utils.find_child_pids(pid_max))
+
+
+class ReadIfExists(testscenarios.WithScenarios,
+                   functional_base.BaseSudoTestCase):
+    scenarios = [
+        ('root', {'run_as_root': True}),
+        ('non-root', {'run_as_root': False})]
+
+    FILE = """Test file
+line 2
+
+line 4
+
+"""
+
+    @classmethod
+    def _write_file(cls, path='/tmp', run_as_root=False):
+        content = cls.FILE.encode('ascii')
+        if run_as_root:
+            return priv_utils.write_to_tempfile(content, _path=path)
+        else:
+            return fileutils.write_to_tempfile(content, path=path)
+
+    def test_read_if_exists(self):
+        test_file_path = self._write_file(run_as_root=self.run_as_root)
+        content = utils.read_if_exists(test_file_path,
+                                       run_as_root=self.run_as_root)
+        file = self.FILE
+        self.assertEqual(file, content)
+
+    def test_read_if_exists_no_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            content = utils.read_if_exists(
+                os.path.join(temp_dir, 'non-existing-file'),
+                run_as_root=self.run_as_root)
+        self.assertEqual('', content)

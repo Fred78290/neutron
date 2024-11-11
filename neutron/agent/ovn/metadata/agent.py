@@ -69,10 +69,12 @@ def _sync_lock(f):
     return wrapped
 
 
+# TODO(jlibosva): Remove the decorator after we depend on OVN version that has
+# the schema containing the additional_chassis column
 def _match_only_if_additional_chassis_is_supported(f):
     @functools.wraps(f)
     def wrapped(self, row, old):
-        if not ovn_utils.is_additional_chassis_supported(self.agent.sb_idl):
+        if not hasattr(row, 'additional_chassis'):
             return False
         return f(self, row, old)
     return wrapped
@@ -204,7 +206,9 @@ class PortBindingUpdatedEvent(PortBindingEvent):
     def _is_new_chassis_set(self, row, old):
         self._log_msg = "Port %s in datapath %s bound to our chassis"
         try:
-            if ovn_utils.is_additional_chassis_supported(self.agent.sb_idl):
+            # TODO(jlibosva): Remove the check after we depend on OVN version
+            # that has the schema containing the additional_chassis column
+            if hasattr(row, 'additional_chassis'):
                 try:
                     # If the additional chassis used to be in the old version
                     # the resources are already provisioned
@@ -335,7 +339,7 @@ class SbGlobalUpdateEvent(_OVNExtensionEvent, row_event.RowEvent):
     def __init__(self, agent):
         table = 'SB_Global'
         events = (self.ROW_UPDATE,)
-        super(SbGlobalUpdateEvent, self).__init__(events, table, None)
+        super().__init__(events, table, None)
         self._agent = agent
         self.event_name = self.__class__.__name__
         self.first_run = True
@@ -366,7 +370,7 @@ class SbGlobalUpdateEvent(_OVNExtensionEvent, row_event.RowEvent):
         timer.start()
 
 
-class MetadataAgent(object):
+class MetadataAgent:
 
     def __init__(self, conf):
         self._conf = conf
@@ -376,9 +380,6 @@ class MetadataAgent(object):
             resource_type='metadata')
         self._sb_idl = None
         self._post_fork_event = threading.Event()
-        # We'll restart all haproxy instances upon start so that they honor
-        # any potential changes in their configuration.
-        self.restarted_metadata_proxy_set = set()
         self._chassis = None
 
     @property
@@ -534,11 +535,11 @@ class MetadataAgent(object):
             ns.decode('utf-8') if isinstance(ns, bytes) else ns
             for ns in ip_lib.list_network_namespaces())
         net_port_bindings = self.get_networks_port_bindings()
-        metadata_namespaces = set(
+        metadata_namespaces = {
             self._get_namespace_name(
                 ovn_utils.get_network_name_from_datapath(datapath))
             for datapath in (pb.datapath for pb in net_port_bindings)
-        )
+        }
         unused_namespaces = [ns for ns in system_namespaces if
                              ns.startswith(NS_PREFIX) and
                              ns not in metadata_namespaces]
@@ -831,11 +832,6 @@ class MetadataAgent(object):
 
         # Ensure the correct checksum in the metadata traffic.
         self._ensure_datapath_checksum(namespace)
-
-        if net_name not in self.restarted_metadata_proxy_set:
-            metadata_driver.MetadataDriver.destroy_monitored_metadata_proxy(
-                self._process_monitor, net_name, self.conf, namespace)
-            self.restarted_metadata_proxy_set.add(net_name)
 
         # Spawn metadata proxy if it's not already running.
         metadata_driver.MetadataDriver.spawn_monitored_metadata_proxy(

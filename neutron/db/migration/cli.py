@@ -38,7 +38,7 @@ HEADS_FILENAME = 'HEADS'
 CONTRACT_HEAD_FILENAME = 'CONTRACT_HEAD'
 EXPAND_HEAD_FILENAME = 'EXPAND_HEAD'
 
-CURRENT_RELEASE = migration.RELEASE_2024_2
+CURRENT_RELEASE = migration.RELEASE_2025_1
 RELEASES = (
     migration.LIBERTY,
     migration.MITAKA,
@@ -59,6 +59,7 @@ RELEASES = (
     migration.RELEASE_2023_2,
     migration.RELEASE_2024_1,
     migration.RELEASE_2024_2,
+    migration.RELEASE_2025_1,
 )
 
 EXPAND_BRANCH = 'expand'
@@ -249,7 +250,7 @@ def _get_release_labels(labels):
     for label in labels:
         # release labels were introduced Liberty for a short time and dropped
         # in that same release cycle
-        result.add('%s_%s' % (migration.LIBERTY, label))
+        result.add('{}_{}'.format(migration.LIBERTY, label))
     return result
 
 
@@ -347,7 +348,7 @@ def _check_head(branch_name, head_file, head):
     try:
         with open(head_file) as file_:
             observed_head = file_.read().strip()
-    except IOError:
+    except OSError:
         pass
     else:
         if observed_head != head:
@@ -565,13 +566,13 @@ def _get_installed_entrypoint(subproject):
 def _get_subproject_script_location(subproject):
     '''Get the script location for the installed subproject.'''
     entrypoint = _get_installed_entrypoint(subproject)
-    return ':'.join([entrypoint.module_name, entrypoint.attrs[0]])
+    return ':'.join([entrypoint.module, entrypoint.attr])
 
 
 def _get_subproject_base(subproject):
     '''Get the import base name for the installed subproject.'''
     entrypoint = _get_installed_entrypoint(subproject)
-    return entrypoint.module_name.split('.')[0]
+    return entrypoint.module.split('.')[0]
 
 
 def get_alembic_version_table(config):

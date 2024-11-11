@@ -13,6 +13,7 @@
 #    under the License.
 #
 
+from neutron_lib import constants as n_const
 from neutron_lib import context as nctx
 from neutron_lib.db import api as db_api
 from neutron_lib.plugins import constants
@@ -35,7 +36,7 @@ class TestRevisionPlugin(test_plugin.Ml2PluginV2TestCase):
     _extension_drivers = ['qos']
 
     def get_additional_service_plugins(self):
-        p = super(TestRevisionPlugin, self).get_additional_service_plugins()
+        p = super().get_additional_service_plugins()
         p.update({'revision_plugin_name': 'revisions',
                   'qos_plugin_name': 'qos',
                   'tag_name': 'tag'})
@@ -45,7 +46,7 @@ class TestRevisionPlugin(test_plugin.Ml2PluginV2TestCase):
         cfg.CONF.set_override('extension_drivers',
                               self._extension_drivers,
                               group='ml2')
-        super(TestRevisionPlugin, self).setUp()
+        super().setUp()
         self.cp = directory.get_plugin()
         self.l3p = directory.get_plugin(constants.L3)
         self._ctx = nctx.get_admin_context()
@@ -216,7 +217,7 @@ class TestRevisionPlugin(test_plugin.Ml2PluginV2TestCase):
         r = {'security_group_rule': {'tenant_id': 'some_tenant',
                                      'port_range_min': 80, 'protocol': 6,
                                      'port_range_max': 90,
-                                     'remote_ip_prefix': '0.0.0.0/0',
+                                     'remote_ip_prefix': n_const.IPv4_ANY,
                                      'ethertype': 'IPv4',
                                      'remote_group_id': None,
                                      'remote_address_group_id': None,

@@ -44,6 +44,7 @@ from neutron.extensions import security_groups_default_rules as \
 from neutron.extensions import securitygroup as ext_sg
 from neutron.objects import base as base_obj
 from neutron.objects import ports as port_obj
+from neutron.objects import rbac_db as rbac_db_obj
 from neutron.objects import securitygroup as sg_obj
 from neutron.objects import securitygroup_default_rules as sg_default_rules_obj
 from neutron import quota
@@ -109,8 +110,12 @@ class SecurityGroupDbMixin(
                 return self.get_security_group(context, existing_def_sg_id)
 
         with db_api.CONTEXT_WRITER.using(context):
-            delta = len(ext_sg.sg_supported_ethertypes)
-            delta = delta * 2 if default_sg else delta
+            if default_sg:
+                delta = sg_default_rules_obj.SecurityGroupDefaultRule.count(
+                    context, used_in_default_sg=True)
+            else:
+                delta = sg_default_rules_obj.SecurityGroupDefaultRule.count(
+                    context, used_in_non_default_sg=True)
             quota.QUOTAS.quota_limit_check(context, tenant_id,
                                            security_group_rule=delta)
 
@@ -131,8 +136,8 @@ class SecurityGroupDbMixin(
             # be used here otherwise, SG will not be found and error 500 will
             # be returned through the API
             get_context = context.elevated() if default_sg else context
-            sg = sg_obj.SecurityGroup.get_object(get_context, id=sg.id)
-            secgroup_dict = self._make_security_group_dict(sg)
+            sg = self._get_security_group(get_context, sg.id)
+            secgroup_dict = self._make_security_group_dict(context, sg)
             self._registry_publish(resources.SECURITY_GROUP,
                                    events.PRECOMMIT_CREATE,
                                    exc_cls=ext_sg.SecurityGroupConflict,
@@ -174,9 +179,10 @@ class SecurityGroupDbMixin(
 
         sg_objs = sg_obj.SecurityGroup.get_objects(
             context, _pager=pager, validate_filters=False,
-            fields=fields, **filters)
+            fields=fields, return_db_obj=True, **filters)
 
-        return [self._make_security_group_dict(obj, fields) for obj in sg_objs]
+        return [self._make_security_group_dict(context, obj, fields)
+                for obj in sg_objs]
 
     @db_api.retry_if_session_inactive()
     def get_security_groups_count(self, context, filters=None):
@@ -195,25 +201,28 @@ class SecurityGroupDbMixin(
 
         try:
             with db_api.CONTEXT_READER.using(context):
-                ret = self._make_security_group_dict(self._get_security_group(
-                    context, id, fields=fields), fields)
-                if (fields is None or len(fields) == 0 or
-                        'security_group_rules' in fields):
-                    rules = self.get_security_group_rules(
-                        context_lib.get_admin_context(),
-                        {'security_group_id': [id]})
-                    ret['security_group_rules'] = rules
+                sg = self._get_security_group(context, id, fields=fields)
+                ret = self._make_security_group_dict(context, sg, fields)
 
         finally:
             if tenant_id:
                 context.tenant_id = tmp_context_tenant_id
         return ret
 
-    def _get_security_group(self, context, id, fields=None):
-        sg = sg_obj.SecurityGroup.get_object(context, fields=fields, id=id)
+    @staticmethod
+    def _get_security_group(context, _id, fields=None):
+        sg = sg_obj.SecurityGroup.get_object(context, fields=fields, id=_id)
         if sg is None:
-            raise ext_sg.SecurityGroupNotFound(id=id)
+            raise ext_sg.SecurityGroupNotFound(id=_id)
         return sg
+
+    @staticmethod
+    def _get_security_group_db(context, _id, fields=None):
+        sg_db = sg_obj.SecurityGroup.get_object(
+            context, fields=fields, id=_id, return_db_obj=True)
+        if sg_db is None:
+            raise ext_sg.SecurityGroupNotFound(id=_id)
+        return sg_db
 
     def _check_security_group(self, context, id, tenant_id=None):
         if tenant_id:
@@ -258,7 +267,7 @@ class SecurityGroupDbMixin(
             # consistency with deleted rules
             sg = self._get_security_group(context, id)
             sgr_ids = [r['id'] for r in sg.rules]
-            sec_group = self._make_security_group_dict(sg)
+            sec_group = self._make_security_group_dict(context, sg)
             self._registry_publish(resources.SECURITY_GROUP,
                                    events.PRECOMMIT_DELETE,
                                    exc_cls=ext_sg.SecurityGroupInUse,
@@ -282,8 +291,8 @@ class SecurityGroupDbMixin(
 
         if 'stateful' in s:
             with db_api.CONTEXT_READER.using(context):
-                sg = self._get_security_group(context, id)
-                if s['stateful'] != sg['stateful']:
+                sg_db = self._get_security_group_db(context, id)
+                if s['stateful'] != sg_db['stateful']:
                     filters = {'security_group_id': [id]}
                     ports = self._get_port_security_group_bindings(context,
                                                                    filters)
@@ -299,11 +308,11 @@ class SecurityGroupDbMixin(
             sg = self._get_security_group(context, id)
             if sg.name == 'default' and 'name' in s:
                 raise ext_sg.SecurityGroupCannotUpdateDefault()
-            sg_dict = self._make_security_group_dict(sg)
+            sg_dict = self._make_security_group_dict(context, sg)
             original_security_group = sg_dict
             sg.update_fields(s)
             sg.update()
-            sg_dict = self._make_security_group_dict(sg)
+            sg_dict = self._make_security_group_dict(context, sg)
             self._registry_publish(
                 resources.SECURITY_GROUP,
                 events.PRECOMMIT_UPDATE,
@@ -320,24 +329,33 @@ class SecurityGroupDbMixin(
 
         return sg_dict
 
-    def _make_security_group_dict(self, security_group, fields=None):
+    def _make_security_group_dict(self, context, security_group, fields=None):
+        """Return the security group in a dictionary
+
+        :param context: Neutron API request context.
+        :param security_group: DB object or OVO of the security group.
+        :param fields: list of fields to filter the returned dictionary.
+        :return: a dictionary with the security group definition.
+        """
+        rules = security_group.rules or []
+        if isinstance(security_group, sg_obj.SecurityGroup):
+            shared = security_group.shared
+            security_group = security_group.db_obj
+        else:
+            rbac_entries = security_group['rbac_entries']
+            shared = rbac_db_obj.RbacNeutronDbObjectMixin.is_network_shared(
+                context, rbac_entries)
         res = {'id': security_group['id'],
                'name': security_group['name'],
                'stateful': security_group['stateful'],
                'tenant_id': security_group['tenant_id'],
                'description': security_group['description'],
-               'standard_attr_id': security_group.db_obj.standard_attr.id,
-               'shared': security_group['shared'],
+               'standard_attr_id': security_group.standard_attr_id,
+               'shared': shared,
+               'security_group_rules': [self._make_security_group_rule_dict(r)
+                                        for r in rules],
                }
-        if security_group.rules:
-            res['security_group_rules'] = [
-                self._make_security_group_rule_dict(r)
-                for r in security_group.rules
-            ]
-        else:
-            res['security_group_rules'] = []
-        resource_extend.apply_funcs(ext_sg.SECURITYGROUPS, res,
-                                    security_group.db_obj)
+        resource_extend.apply_funcs(ext_sg.SECURITYGROUPS, res, security_group)
         return db_utils.resource_fields(res, fields)
 
     @staticmethod
@@ -498,7 +516,7 @@ class SecurityGroupDbMixin(
             'remote_address_group_id': rule_obj[
                 'remote_address_group_id'],
             'remote_group_id': rule_obj['remote_group_id'],
-            'standard_attr_id': rule_obj.db_obj.standard_attr.id,
+            'standard_attr_id': rule_obj.db_obj.standard_attr_id,
             'description': rule_obj['description'],
             'used_in_default_sg': rule_obj['used_in_default_sg'],
             'used_in_non_default_sg': rule_obj['used_in_non_default_sg']
@@ -686,18 +704,18 @@ class SecurityGroupDbMixin(
             rule_obj, fields=fields)
 
     def _get_ip_proto_number(self, protocol):
-        if protocol is None:
+        if protocol in const.SG_RULE_PROTO_ANY:
             return
-        # According to bug 1381379, protocol is always set to string to avoid
-        # problems with comparing int and string in PostgreSQL. Here this
-        # string is converted to int to give an opportunity to use it as
-        # before.
+        # According to bug 1381379, protocol is always set to string. This was
+        # done to avoid problems with comparing int and string in PostgreSQL.
+        # (Since then, the backend is no longer supported.) Here this string is
+        # converted to int to give an opportunity to use it as before.
         if protocol in constants.IP_PROTOCOL_NAME_ALIASES:
             protocol = constants.IP_PROTOCOL_NAME_ALIASES[protocol]
         return int(constants.IP_PROTOCOL_MAP.get(protocol, protocol))
 
     def _get_ip_proto_name_and_num(self, protocol, ethertype=None):
-        if protocol is None:
+        if protocol in const.SG_RULE_PROTO_ANY:
             return
         protocol = str(protocol)
         # Force all legacy IPv6 ICMP protocol names to be 'ipv6-icmp', and
@@ -871,9 +889,9 @@ class SecurityGroupDbMixin(
 
     @staticmethod
     def _validate_sgs_for_port(security_groups):
-        if not security_groups:
-            return
-        if not len(set(sg.stateful for sg in security_groups)) == 1:
+        if (security_groups and
+                any(sg.stateful for sg in security_groups) and
+                any(not sg.stateful for sg in security_groups)):
             msg = ("Cannot apply both stateful and stateless security "
                    "groups on the same port at the same time")
             raise ext_sg.SecurityGroupConflict(reason=msg)
@@ -905,7 +923,7 @@ class SecurityGroupDbMixin(
                'normalized_cidr': self._get_normalized_cidr_from_rule(
                    sg_rule_db),
                'remote_group_id': sg_rule_db.remote_group_id,
-               'standard_attr_id': sg_rule_db.standard_attr.id,
+               'standard_attr_id': sg_rule_db.standard_attr_id,
                'belongs_to_default_sg': belongs_to_default_sg,
                }
 
@@ -927,7 +945,7 @@ class SecurityGroupDbMixin(
             none_char = '+'
 
             if key == 'remote_ip_prefix':
-                all_address = ['0.0.0.0/0', '::/0', None]
+                all_address = [constants.IPv4_ANY, constants.IPv6_ANY, None]
                 if value in all_address:
                     return none_char
             elif value is None:
@@ -1174,13 +1192,13 @@ class SecurityGroupDbMixin(
 
         sg_objs = sg_obj.SecurityGroup.get_objects(context, id=port_sg)
 
-        valid_groups = set(
+        valid_groups = {
             g.id for g in sg_objs
             if (context.is_admin or not tenant_id or
                 g.tenant_id == tenant_id or
                 sg_obj.SecurityGroup.is_shared_with_project(
                     context, g.id, tenant_id))
-        )
+        }
 
         requested_groups = set(port_sg)
         port_sg_missing = requested_groups - valid_groups

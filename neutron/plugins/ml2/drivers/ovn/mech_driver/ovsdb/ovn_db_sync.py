@@ -45,7 +45,7 @@ SYNC_MODE_LOG = 'log'
 SYNC_MODE_REPAIR = 'repair'
 
 
-class OvnDbSynchronizer(object, metaclass=abc.ABCMeta):
+class OvnDbSynchronizer(metaclass=abc.ABCMeta):
 
     def __init__(self, core_plugin, ovn_api, ovn_driver):
         self.ovn_driver = ovn_driver
@@ -71,7 +71,7 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
     """Synchronizer class for NB."""
 
     def __init__(self, core_plugin, ovn_api, sb_ovn, mode, ovn_driver):
-        super(OvnNbSynchronizer, self).__init__(
+        super().__init__(
             core_plugin, ovn_api, ovn_driver)
         self.mode = mode
         self.l3_plugin = directory.get_plugin(plugin_constants.L3)
@@ -91,7 +91,7 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
         if utils.is_ovn_l3(self.l3_plugin):
             self.l3_plugin._nb_ovn.ovsdb_connection.stop()
             self.l3_plugin._sb_ovn.ovsdb_connection.stop()
-        super(OvnNbSynchronizer, self).stop()
+        super().stop()
 
     def do_sync(self):
         if self.mode == SYNC_MODE_OFF:
@@ -149,7 +149,7 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
         @var   acl_list_dict: Dictionary of acl-lists based on lport as key
         @return: acl_list-dict
         """
-        lswitch_names = set([])
+        lswitch_names = set()
         for network in self.core_plugin.get_networks(context):
             lswitch_names.add(network['id'])
         acl_dict, ignore1, ignore2 = (
@@ -199,8 +199,8 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
         if self.mode == SYNC_MODE_REPAIR and (add_pgs or remove_pgs):
             if add_pgs:
                 db_ports = self.core_plugin.get_ports(ctx)
-                ovn_ports = set(p.name for p in
-                                self.ovn_api.lsp_list().execute())
+                ovn_ports = {p.name for p in
+                             self.ovn_api.lsp_list().execute()}
             with self.ovn_api.transaction(check_error=True) as txn:
                 pg = ovn_const.OVN_DROP_PORT_GROUP_NAME
                 # Process default drop port group first
@@ -260,24 +260,17 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
         LOG.debug('OVN-NB Sync ACLs started @ %s', str(datetime.now()))
 
         neutron_acls = []
-        # if allow-stateless supported, we have to fetch groups to determine if
-        # stateful is set
-        if self._ovn_client.is_allow_stateless_supported():
-            for sg in self.core_plugin.get_security_groups(ctx):
-                stateful = sg.get("stateful", True)
-                pg_name = utils.ovn_port_group_name(sg['id'])
-                for sgr in self.core_plugin.get_security_group_rules(
-                        ctx, {'security_group_id': sg['id']}):
-                    neutron_acls.append(
-                        acl_utils._add_sg_rule_acl_for_port_group(
-                            pg_name, stateful, sgr)
-                    )
-        else:
-            # TODO(ihrachys) remove when min OVN version >= 21.06
-            for sgr in self.core_plugin.get_security_group_rules(ctx):
-                pg_name = utils.ovn_port_group_name(sgr['security_group_id'])
-                neutron_acls.append(acl_utils._add_sg_rule_acl_for_port_group(
-                    pg_name, True, sgr))
+        # we have to fetch groups to determine if stateful is set
+        for sg in self.core_plugin.get_security_groups(ctx):
+            stateful = sg.get("stateful", True)
+            pg_name = utils.ovn_port_group_name(sg['id'])
+            for sgr in self.core_plugin.get_security_group_rules(
+                    ctx, {'security_group_id': sg['id']}):
+                neutron_acls.append(
+                    acl_utils._add_sg_rule_acl_for_port_group(
+                        pg_name, stateful, sgr)
+                )
+
         # Sort the acls in the Neutron database according to the security
         # group rule ID for easy comparison in the future.
         neutron_acls.sort(key=lambda x: x[ovn_const.OVN_SG_RULE_EXT_ID_KEY])
@@ -967,7 +960,7 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
         LOG.debug('OVN-NB Sync DHCP options for Neutron subnets completed @ '
                   '%s', str(datetime.now()))
 
-    def _sync_port_dhcp_options(self, ctx, ports_need_sync_dhcp_opts,
+    def _sync_port_dhcp_options(self, ports_need_sync_dhcp_opts,
                                 ovn_port_dhcpv4_opts, ovn_port_dhcpv6_opts):
         LOG.debug('OVN-NB Sync DHCP options for Neutron ports with extra '
                   'dhcp options assigned started')
@@ -1155,7 +1148,7 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
             else:
                 del_lswitchs_list.append(lswitch)
 
-        for net_id, network in db_networks.items():
+        for network in db_networks.values():
             LOG.warning("Network found in Neutron but not in "
                         "OVN NB DB, network_id=%s", network['id'])
             if self.mode == SYNC_MODE_REPAIR:
@@ -1185,12 +1178,12 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
                                 port['id'])
                     self._create_port_in_ovn(ctx, port)
                     if port_id in ovn_all_dhcp_options['ports_v4']:
-                        dhcp_disable, lsp_opts = utils.get_lsp_dhcp_opts(
+                        __, lsp_opts = utils.get_lsp_dhcp_opts(
                             port, constants.IP_VERSION_4)
                         if lsp_opts:
                             ovn_all_dhcp_options['ports_v4'].pop(port_id)
                     if port_id in ovn_all_dhcp_options['ports_v6']:
-                        dhcp_disable, lsp_opts = utils.get_lsp_dhcp_opts(
+                        __, lsp_opts = utils.get_lsp_dhcp_opts(
                             port, constants.IP_VERSION_6)
                         if lsp_opts:
                             ovn_all_dhcp_options['ports_v6'].pop(port_id)
@@ -1260,7 +1253,7 @@ class OvnNbSynchronizer(OvnDbSynchronizer):
                             ovn_all_dhcp_options['ports_v6'].pop(
                                 lport_info['port'])['uuid']))
 
-        self._sync_port_dhcp_options(ctx, ports_need_sync_dhcp_opts,
+        self._sync_port_dhcp_options(ports_need_sync_dhcp_opts,
                                      ovn_all_dhcp_options['ports_v4'],
                                      ovn_all_dhcp_options['ports_v6'])
         LOG.debug('OVN-NB Sync networks, ports and DHCP options completed @ '
@@ -1343,7 +1336,7 @@ class OvnSbSynchronizer(OvnDbSynchronizer):
     """Synchronizer class for SB."""
 
     def __init__(self, core_plugin, ovn_api, ovn_driver):
-        super(OvnSbSynchronizer, self).__init__(
+        super().__init__(
             core_plugin, ovn_api, ovn_driver)
         self.l3_plugin = directory.get_plugin(plugin_constants.L3)
 

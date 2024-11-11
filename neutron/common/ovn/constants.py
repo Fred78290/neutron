@@ -32,8 +32,6 @@ OVN_ROUTER_NAME_EXT_ID_KEY = 'neutron:router_name'
 OVN_ROUTER_ID_EXT_ID_KEY = 'neutron:router_id'
 OVN_AZ_HINTS_EXT_ID_KEY = 'neutron:availability_zone_hints'
 OVN_ROUTER_IS_EXT_GW = 'neutron:is_ext_gw'
-OVN_GW_PORT_EXT_ID_KEY = 'neutron:gw_port_id'        # DEPRECATED, DON'T USE
-OVN_GW_NETWORK_EXT_ID_KEY = 'neutron:gw_network_id'  # DEPRECATED, DON'T USE
 OVN_SUBNET_EXT_ID_KEY = 'neutron:subnet_id'
 OVN_SUBNET_EXT_IDS_KEY = 'neutron:subnet_ids'
 OVN_SUBNET_POOL_EXT_ADDR_SCOPE4_KEY = 'neutron:subnet_pool_addr_scope4'
@@ -57,6 +55,8 @@ METADATA_LIVENESS_CHECK_EXT_ID_KEY = 'neutron:metadata_liveness_check_at'
 OVN_PORT_BINDING_PROFILE = portbindings.PROFILE
 OVN_HOST_ID_EXT_ID_KEY = 'neutron:host_id'
 OVN_LRSR_EXT_ID_KEY = 'neutron:is_static_route'
+OVN_FIP_DISTRIBUTED_KEY = 'neutron:fip-distributed'
+OVN_ADDRESS_GROUP_ID_KEY = 'neutron:address_group_id'
 
 MIGRATING_ATTR = 'migrating_to'
 OVN_ROUTER_PORT_OPTION_KEYS = ['router-port', 'nat-addresses',
@@ -264,8 +264,9 @@ TYPE_ROUTER_PORTS = 'router_ports'
 TYPE_SECURITY_GROUPS = 'security_groups'
 TYPE_FLOATINGIPS = 'floatingips'
 TYPE_SUBNETS = 'subnets'
+TYPE_ADDRESS_GROUPS = 'address_groups'
 
-_TYPES_PRIORITY_ORDER = (
+TYPES_PRIORITY_ORDER = (
     TYPE_NETWORKS,
     TYPE_SECURITY_GROUPS,
     TYPE_SUBNETS,
@@ -273,21 +274,12 @@ _TYPES_PRIORITY_ORDER = (
     TYPE_PORTS,
     TYPE_ROUTER_PORTS,
     TYPE_FLOATINGIPS,
+    TYPE_ADDRESS_GROUPS,
     TYPE_SECURITY_GROUP_RULES)
 
 DB_CONSISTENCY_CHECK_INTERVAL = 300  # 5 minutes
 MAINTENANCE_TASK_RETRY_LIMIT = 100  # times
 MAINTENANCE_ONE_RUN_TASK_SPACING = 5  # seconds
-
-# The order in which the resources should be created or updated by the
-# maintenance task: Root ones first and leafs at the end.
-MAINTENANCE_CREATE_UPDATE_TYPE_ORDER = {
-    t: n for n, t in enumerate(_TYPES_PRIORITY_ORDER, 1)}
-
-# The order in which the resources should be deleted by the maintenance
-# task: Leaf ones first and roots at the end.
-MAINTENANCE_DELETE_TYPE_ORDER = {
-    t: n for n, t in enumerate(reversed(_TYPES_PRIORITY_ORDER), 1)}
 
 # The addresses field to set in the logical switch port which has a
 # peer router port (connecting to the logical router).
@@ -464,6 +456,3 @@ OVN_SUPPORTED_VNIC_TYPES = [portbindings.VNIC_NORMAL,
                             portbindings.VNIC_BAREMETAL,
                             portbindings.VNIC_VIRTIO_FORWARDER,
                             ]
-
-# OVN default SNAT CIDR
-OVN_DEFAULT_SNAT_CIDR = '0.0.0.0/0'

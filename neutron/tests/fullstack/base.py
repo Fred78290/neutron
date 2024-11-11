@@ -55,7 +55,7 @@ class BaseFullStackTestCase(testlib_api.MySQLTestCaseMixin,
     CLEAN_DB_AFTER_TEST = True
 
     def setUp(self, environment):
-        super(BaseFullStackTestCase, self).setUp()
+        super().setUp()
 
         tests_base.setup_test_logging(
             cfg.CONF, DEFAULT_LOG_DIR, '%s.txt' % self.get_name())
@@ -92,7 +92,7 @@ class BaseFullStackTestCase(testlib_api.MySQLTestCaseMixin,
 
     def get_name(self):
         class_name, test_name = self.id().split(".")[-2:]
-        return "%s.%s" % (class_name, test_name)
+        return "{}.{}".format(class_name, test_name)
 
     def _wait_until_agent_up(self, agent_id):
         def _agent_up():
@@ -167,11 +167,12 @@ class BaseFullStackTestCase(testlib_api.MySQLTestCaseMixin,
         available_ips = itertools.islice(valid_ips, initial, initial + num)
         return [str(available_ip) for available_ip in available_ips]
 
-    def _create_external_vm(self, network, subnet):
+    def _create_external_vm(self, network, subnet, ip=None):
+        ip = ip or subnet['gateway_ip']
         vm = self.useFixture(
             machine_fixtures.FakeMachine(
                 self.environment.central_bridge,
-                common_utils.ip_to_cidr(subnet['gateway_ip'], 24)))
+                common_utils.ip_to_cidr(ip, 24)))
         # NOTE(slaweq): as ext_net is 'vlan' network type external_vm needs to
         # send packets with proper vlan also
         vm.bridge.set_db_attribute(

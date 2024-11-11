@@ -26,7 +26,7 @@ from neutron.tests import base
 class TestChecks(base.BaseTestCase):
 
     def setUp(self):
-        super(TestChecks, self).setUp()
+        super().setUp()
         self.checks = checks.CoreChecks()
 
     def test_get_checks_list(self):
@@ -55,60 +55,6 @@ class TestChecks(base.BaseTestCase):
         cfg.CONF.set_override("rpc_workers", None)
         result = checks.CoreChecks.worker_count_check(mock.Mock())
         self.assertEqual(Code.WARNING, result.code)
-
-    def test_external_network_bridge_check_good(self):
-        agents = [
-            {'host': 'Host A', 'configurations': '{}'},
-            {'host': 'Host B',
-             'configurations': '{"external_network_bridge": ""}'}
-        ]
-        with mock.patch.object(checks, "get_l3_agents", return_value=agents):
-            result = checks.CoreChecks.external_network_bridge_check(
-                mock.Mock())
-            self.assertEqual(Code.SUCCESS, result.code)
-
-    def test_external_network_bridge_check_bad(self):
-        agents = [
-            {'host': 'Host A', 'configurations': '{}'},
-            {'host': 'Host B',
-             'configurations': '{"external_network_bridge": "br-ex"}'},
-            {'host': 'Host C',
-             'configurations': '{"external_network_bridge": ""}'}
-        ]
-        with mock.patch.object(checks, "get_l3_agents", return_value=agents):
-            result = checks.CoreChecks.external_network_bridge_check(
-                mock.Mock())
-            self.assertEqual(Code.WARNING, result.code)
-            self.assertIn('Host B', result.details)
-            self.assertNotIn('Host A', result.details)
-            self.assertNotIn('Host C', result.details)
-
-    def test_gateway_external_network_check_good(self):
-        agents = [
-            {'host': 'Host A', 'configurations': '{}'},
-            {'host': 'Host B',
-             'configurations': '{"gateway_external_network_id": ""}'}
-        ]
-        with mock.patch.object(checks, "get_l3_agents", return_value=agents):
-            result = checks.CoreChecks.gateway_external_network_check(
-                mock.Mock())
-            self.assertEqual(Code.SUCCESS, result.code)
-
-    def test_gateway_external_network_check_bad(self):
-        agents = [
-            {'host': 'Host A', 'configurations': '{}'},
-            {'host': 'Host B',
-             'configurations': '{"gateway_external_network_id": "net-uuid"}'},
-            {'host': 'Host C',
-             'configurations': '{"gateway_external_network_id": ""}'}
-        ]
-        with mock.patch.object(checks, "get_l3_agents", return_value=agents):
-            result = checks.CoreChecks.gateway_external_network_check(
-                mock.Mock())
-            self.assertEqual(Code.WARNING, result.code)
-            self.assertIn('Host B', result.details)
-            self.assertNotIn('Host A', result.details)
-            self.assertNotIn('Host C', result.details)
 
     def test_network_mtu_check_good(self):
         networks = [
@@ -216,8 +162,8 @@ class TestChecks(base.BaseTestCase):
 
     def test_port_binding_profile_sanity(self):
         new_format = {"allocation":
-            {"397aec7a-1f69-11ec-9f1a-7b14e597e275":
-                "41d7391e-1f69-11ec-a899-8f9d6d950f8d"}}
+                      {"397aec7a-1f69-11ec-9f1a-7b14e597e275":
+                       "41d7391e-1f69-11ec-a899-8f9d6d950f8d"}}
         old_format = {"allocation": "41d7391e-1f69-11ec-a899-8f9d6d950f8d"}
         cases = (([new_format], Code.SUCCESS),
                  ([old_format], Code.FAILURE))

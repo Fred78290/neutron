@@ -52,14 +52,12 @@ _RESOURCE_FOREIGN_KEYS = {
 }
 
 # TODO(slaweq): Remove overriding the default value of config options
-# 'policy_file', 'enforce_scope', and 'enforce_new_defaults' once
-# oslo_policy change their default value to what is overridden here.
+# 'policy_file' once oslo_policy change its default value to what
+# is overridden here.
 DEFAULT_POLICY_FILE = 'policy.yaml'
 opts.set_defaults(
     cfg.CONF,
-    DEFAULT_POLICY_FILE,
-    enforce_scope=True,
-    enforce_new_defaults=True)
+    DEFAULT_POLICY_FILE)
 
 
 def reset():
@@ -181,7 +179,7 @@ def _build_list_of_subattrs_rule(attr_name, attribute_value, action):
         if isinstance(sub_attr, dict):
             for k in sub_attr:
                 rules.append(policy.RuleCheck(
-                    'rule', '%s:%s:%s' % (action, attr_name, k)))
+                    'rule', '{}:{}:{}'.format(action, attr_name, k)))
     if rules:
         return policy.AndCheck(rules)
 
@@ -226,7 +224,7 @@ def _build_match_rule(action, target, pluralized):
                     attribute = res_map[resource][attribute_name]
                     if 'enforce_policy' in attribute:
                         attr_rule = policy.RuleCheck(
-                            'rule', '%s:%s' % (action, attribute_name))
+                            'rule', '{}:{}'.format(action, attribute_name))
                         # Build match entries for sub-attributes
                         if _should_validate_sub_attributes(
                                 attribute, target[attribute_name]):
@@ -276,10 +274,10 @@ class OwnerCheck(policy.Check):
                           match)
             LOG.exception(err_reason)
             raise exceptions.PolicyInitError(
-                policy="%s:%s" % (kind, match),
+                policy="{}:{}".format(kind, match),
                 reason=err_reason)
         self._cache = cache._get_memory_cache_region(expiration_time=5)
-        super(OwnerCheck, self).__init__(kind, match)
+        super().__init__(kind, match)
 
     # NOTE(slaweq): It seems we need to have it like that, otherwise we hit
     # TypeError: cannot pickle '_thread.RLock' object
@@ -343,13 +341,14 @@ class OwnerCheck(policy.Check):
                               self.target_field)
                 LOG.error(err_reason)
                 raise exceptions.PolicyCheckError(
-                    policy="%s:%s" % (self.kind, self.match),
+                    policy="{}:{}".format(self.kind, self.match),
                     reason=err_reason)
             parent_foreign_key = _RESOURCE_FOREIGN_KEYS.get(
                 "%ss" % parent_res, None)
             if parent_res == constants.EXT_PARENT_PREFIX:
                 for resource in service_const.EXT_PARENT_RESOURCE_MAPPING:
-                    key = "%s_%s_id" % (constants.EXT_PARENT_PREFIX, resource)
+                    key = "{}_{}_id".format(
+                        constants.EXT_PARENT_PREFIX, resource)
                     if key in target:
                         parent_foreign_key = key
                         parent_res = resource
@@ -360,7 +359,7 @@ class OwnerCheck(policy.Check):
                               {'match': self.match, 'res': parent_res})
                 LOG.error(err_reason)
                 raise exceptions.PolicyCheckError(
-                    policy="%s:%s" % (self.kind, self.match),
+                    policy="{}:{}".format(self.kind, self.match),
                     reason=err_reason)
 
             target[self.target_field] = self._extract(
@@ -382,8 +381,8 @@ class FieldCheck(policy.Check):
         resource, field_value = match.split(':', 1)
         field, value = field_value.split('=', 1)
 
-        super(FieldCheck, self).__init__(kind, '%s:%s:%s' %
-                                         (resource, field, value))
+        super().__init__(kind, '%s:%s:%s' %
+                         (resource, field, value))
 
         # Value might need conversion - we need help from the attribute map
 

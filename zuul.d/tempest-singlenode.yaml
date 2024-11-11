@@ -16,6 +16,7 @@
         CIRROS_VERSION: 0.6.2
         DEFAULT_IMAGE_NAME: cirros-0.6.2-x86_64-uec
         DEFAULT_IMAGE_FILE_NAME: cirros-0.6.2-x86_64-uec.tar.gz
+        NEUTRON_DEPLOY_MOD_WSGI: false
       devstack_plugins:
         neutron: https://opendev.org/openstack/neutron.git
       devstack_services:
@@ -59,6 +60,7 @@
         Q_ML2_PLUGIN_MECHANISM_DRIVERS: openvswitch
         NEUTRON_DEPLOY_MOD_WSGI: true
     irrelevant-files: &openvswitch-irrelevant-files
+      - ^\.pre-commit-config\.yaml$
       - ^\.pylintrc$
       - ^test-requirements.txt$
       - ^.*\.conf\.sample$
@@ -126,6 +128,7 @@
             experimental:
               linuxbridge: true
     irrelevant-files:
+      - ^\.pre-commit-config\.yaml$
       - ^\.pylintrc$
       - ^test-requirements.txt$
       - ^.*\.conf\.sample$
@@ -221,22 +224,23 @@
     parent: neutron-ovs-tempest-iptables_hybrid
 
 - job:
-    name: neutron-ovn-tempest-postgres-full
+    name: neutron-ovn-tempest-mariadb-full
     parent: tempest-integrated-networking
     timeout: 10800
     required-projects:
       - openstack/neutron
       - openstack/tempest
     vars:
-      devstack_plugins:
-        neutron: https://opendev.org/openstack/neutron.git
       devstack_localrc:
+        MYSQL_SERVICE_NAME: mariadb
+        MYSQL_REDUCE_MEMORY: true
         CIRROS_VERSION: 0.6.2
         DEFAULT_IMAGE_NAME: cirros-0.6.2-x86_64-uec
         DEFAULT_IMAGE_FILE_NAME: cirros-0.6.2-x86_64-uec.tar.gz
+        NEUTRON_DEPLOY_MOD_WSGI: true
+      devstack_plugins:
+        neutron: https://opendev.org/openstack/neutron.git
       devstack_services:
-        postgresql: true
-        mysql: false
         br-ex-tcpdump: true
         br-int-flows: true
         # Cinder services
@@ -254,7 +258,11 @@
         '/var/log/ovn': 'logs'
         '/var/log/openvswitch': 'logs'
         '/var/lib/ovn': 'logs'
+    # NOTE(ralonsoh): once MariaDB default version in Ubuntu is bumped to
+    # >10.1, this workaround can be removed (bug 1855912)
+    pre-run: playbooks/add_mariadb_repo.yaml
     irrelevant-files: &tempest-db-irrelevant-files
+      - ^\.pre-commit-config\.yaml$
       - ^\.pylintrc$
       - ^test-requirements.txt$
       - ^.*\.conf\.sample$
@@ -280,45 +288,6 @@
       - ^zuul.d/rally.yaml
       - ^zuul.d/tempest-multinode.yaml
       - ^zuul.d/tempest-singlenode.yaml
-
-- job:
-    name: neutron-ovn-tempest-mariadb-full
-    parent: tempest-integrated-networking
-    timeout: 10800
-    required-projects:
-      - openstack/neutron
-      - openstack/tempest
-    vars:
-      devstack_localrc:
-        MYSQL_SERVICE_NAME: mariadb
-        MYSQL_REDUCE_MEMORY: true
-        CIRROS_VERSION: 0.6.2
-        DEFAULT_IMAGE_NAME: cirros-0.6.2-x86_64-uec
-        DEFAULT_IMAGE_FILE_NAME: cirros-0.6.2-x86_64-uec.tar.gz
-      devstack_plugins:
-        neutron: https://opendev.org/openstack/neutron.git
-      devstack_services:
-        br-ex-tcpdump: true
-        br-int-flows: true
-        # Cinder services
-        c-api: false
-        c-bak: false
-        c-sch: false
-        c-vol: false
-        cinder: false
-        # Swift services
-        s-account: false
-        s-container: false
-        s-object: false
-        s-proxy: false
-      zuul_copy_output:
-        '/var/log/ovn': 'logs'
-        '/var/log/openvswitch': 'logs'
-        '/var/lib/ovn': 'logs'
-    # NOTE(ralonsoh): once MariaDB default version in Ubuntu is bumped to
-    # >10.1, this workaround can be removed (bug 1855912)
-    pre-run: playbooks/add_mariadb_repo.yaml
-    irrelevant-files: *tempest-db-irrelevant-files
 
 - job:
     name: neutron-ovs-tempest-with-os-ken-master
@@ -347,6 +316,7 @@
         s-object: false
         s-proxy: false
     irrelevant-files:
+      - ^\.pre-commit-config\.yaml$
       - ^\.pylintrc$
       - ^test-requirements.txt$
       - ^.*\.conf\.sample$
@@ -388,6 +358,7 @@
         CIRROS_VERSION: 0.6.2
         DEFAULT_IMAGE_NAME: cirros-0.6.2-x86_64-uec
         DEFAULT_IMAGE_FILE_NAME: cirros-0.6.2-x86_64-uec.tar.gz
+        NEUTRON_DEPLOY_MOD_WSGI: true
       devstack_plugins:
         neutron: https://opendev.org/openstack/neutron.git
       devstack_services:
@@ -460,13 +431,11 @@
     timeout: 10800
     vars:
       devstack_localrc:
-        # TODO(ykarel) can be enabled once
-        # https://bugs.launchpad.net/neutron/+bug/1912359 fixed
-        NEUTRON_DEPLOY_MOD_WSGI: false
         MYSQL_REDUCE_MEMORY: true
         CIRROS_VERSION: 0.6.2
         DEFAULT_IMAGE_NAME: cirros-0.6.2-x86_64-uec
         DEFAULT_IMAGE_FILE_NAME: cirros-0.6.2-x86_64-uec.tar.gz
+        NEUTRON_DEPLOY_MOD_WSGI: true
       devstack_plugins:
         neutron: https://opendev.org/openstack/neutron.git
       devstack_services:
@@ -493,6 +462,7 @@
         '/var/log/openvswitch': 'logs'
         '/var/lib/ovn': 'logs'
     irrelevant-files: &irrelevant-files
+      - ^\.pre-commit-config\.yaml$
       - ^\.pylintrc$
       - ^test-requirements.txt$
       - ^.*\.conf\.sample$
@@ -571,6 +541,7 @@
         # sources, new job, inheriting from this one, should be created and
         # that option should be overwritten there.
         OVN_BUILD_FROM_SOURCE: False
+        NEUTRON_DEPLOY_MOD_WSGI: true
       devstack_plugins:
         neutron: https://opendev.org/openstack/neutron
       zuul_copy_output:
@@ -623,6 +594,7 @@
         c-vol: false
         cinder: false
     irrelevant-files: &ovn-irrelevant-files
+      - ^\.pre-commit-config\.yaml$
       - ^\.pylintrc$
       - ^test-requirements.txt$
       - ^releasenotes/.*$
@@ -682,6 +654,17 @@
         OVS_BRANCH: main
 
 - job:
+    name: neutron-ovn-tempest-ovs-lts
+    branches: ^master$
+    description: Job testing for devstack/tempest testing Neutron with ovn driver and the latest OVN LTS branch
+    parent: neutron-ovn-base
+    vars:
+      devstack_localrc:
+        OVN_BUILD_FROM_SOURCE: True
+        OVN_BRANCH: branch-24.03
+        OVS_BRANCH: branch-3.3
+
+- job:
     name: neutron-ovn-tempest-plugin-ovs-master
     branches: ^master$
     description: Job testing Neutron tempest plugin with ovn driver and OVN master branch
@@ -691,6 +674,17 @@
         OVN_BUILD_FROM_SOURCE: True
         OVN_BRANCH: main
         OVS_BRANCH: main
+
+- job:
+    name: neutron-ovn-tempest-plugin-ovs-lts
+    branches: ^master$
+    description: Job testing Neutron tempest plugin with ovn driver and the latest OVN LTS branch
+    parent: neutron-tempest-plugin-ovn
+    vars:
+      devstack_localrc:
+        OVN_BUILD_FROM_SOURCE: True
+        OVN_BRANCH: branch-24.03
+        OVS_BRANCH: branch-3.3
 
 - job:
     name: neutron-ovn-tempest-ovs-release-with-oslo-master
@@ -791,6 +785,7 @@
         CIRROS_VERSION: 0.6.2
         DEFAULT_IMAGE_NAME: cirros-0.6.2-x86_64-uec
         DEFAULT_IMAGE_FILE_NAME: cirros-0.6.2-x86_64-uec.tar.gz
+        NEUTRON_DEPLOY_MOD_WSGI: true
       devstack_plugins:
         neutron: https://opendev.org/openstack/neutron.git
       devstack_services:
@@ -859,6 +854,7 @@
         CIRROS_VERSION: 0.6.2
         DEFAULT_IMAGE_NAME: cirros-0.6.2-x86_64-uec
         DEFAULT_IMAGE_FILE_NAME: cirros-0.6.2-x86_64-uec.tar.gz
+        NEUTRON_DEPLOY_MOD_WSGI: true
       devstack_plugins:
         neutron: https://opendev.org/openstack/neutron.git
       devstack_services:
